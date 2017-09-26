@@ -20,11 +20,13 @@ table((upload_full %>% filter(Status == "unknown", Type != "rare disease") %>% p
 # V1 V1.5   V2   V4 
 # 112  101  350    0
 
-# Restrict upload report to cancer, V4 and qc_passed
+# Restrict upload report to cancer, V4 (but NOT qc_passed; some samples that shouldn't fail still have "failed" status)
 upload <- read.table(paste0("./Data/upload_report.", today, ".txt"), sep = "\t")
 colnames(upload) <- as.character(fread(paste0("./Data/upload_report.", today, ".txt"), skip = 14, nrows = 1, header = F))
-upload <- upload %>% filter(`Delivery Version` == "V4", Status == "qc_passed", Type %in% c("cancer germline", "cancer tumour"))
+#upload <- upload %>% filter(`Delivery Version` == "V4", Status == "qc_passed", Type %in% c("cancer germline", "cancer tumour"))
+upload <- upload %>% filter(`Delivery Version` == "V4", Type %in% c("cancer germline", "cancer tumour"))
 upload$Path <- as.character(upload$Path)
+table(upload$Status)  # 40 have qc_failed status
 
 
 ### Load cohort and QC data
@@ -54,48 +56,60 @@ write.table((QC %>% filter(TUMOUR_TYPE == "N/A") %>% select(WELL_ID, TUMOUR_TYPE
 # Find FFPE plate samples in the (cancer, clean) upload report
 upload$Platekey <- as.character(upload$Platekey)
 upload$Plate <- sapply(upload$Platekey, function(x){strsplit(x, split = "-")[[1]][1] })
-FFPE_list <- upload %>% filter(Plate %in% FFPE_plates)  # 240 FFPE samples
-sum(duplicated(FFPE_list$Platekey))  # 0
+FFPE_list <- upload %>% filter(Plate %in% FFPE_plates)
+dim(FFPE_list)  # 246
+sum(duplicated(FFPE_list$Platekey))  # 1 duplicated (LP3000140-DNA_A03)
+FFPE_list %>% filter(Platekey == FFPE_list[duplicated(FFPE_list$Platekey),]$Platekey)  # One version has a delivery problem, removing (ID BE00000001)
+FFPE_list <- FFPE_list %>% filter(DeliveryID != "BE00000001")
+table(FFPE_list$Status, exclude = NULL)  # 5 samples are QC failed, 240 pass
+FFPE_list %>% filter(Status == "qc_failed") %>% select(Platekey, DeliveryID, `Delivery Date`, `Delivery Version`, Status)
+
 
 # Add matching germlines from the upload report, check versions and QC status
 FFPE_list$Path <- as.character(FFPE_list$Path )
 FFPE_list$Platekey_normal <- sapply(FFPE_list$Path, function(x){strsplit(strsplit(x, split = "/")[[1]][6], split = "Normal")[[1]][2]})
-dim(upload %>% filter(Platekey %in% FFPE_list$Platekey_normal))  # 239 (one matching normal missing)
-FFPE_list$Platekey_normal[!FFPE_list$Platekey_normal %in% upload$Platekey]  # "LP3000069-DNA_E03" missing
+dim(upload %>% filter(Platekey %in% FFPE_list$Platekey_normal))  # 246
+FFPE_list$Platekey_normal[!FFPE_list$Platekey_normal %in% upload$Platekey]  # 0 (no normals missing from upload)
 
-# Look at matching normals in the full upload report (2 qc failed, check if one is the missing one)
+# Look at matching normals in the full upload report (2 normals are qc_failed)
 table((upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal) %>% pull(`Delivery Version`)), (upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal) %>% pull(Status)))
 upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal, `Delivery Version` == "V4", Status == "qc_failed")
 normals_failed <- upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal, `Delivery Version` == "V4", Status == "qc_failed") %>% pull(Platekey)
 FFPE_list[FFPE_list$Platekey_normal %in% normals_failed,]
-upload_full %>% filter(Platekey == "LP3000069-DNA_E03") # QC-passed when delivered in V2, but failed when it was lifted to V4 (LP3000069-DNA_E03); Bertha error: "Minimum covered positions requirement not met: Positions covered at >= 15x is 94.5%. Must be >= 95%."
+upload_full %>% filter(Platekey %in% normals_failed) 
+# LP3000069-DNA_E03 QC-passed when delivered in V2, but failed when it was lifted to V4 (LP3000069-DNA_E03); Bertha error: "Minimum covered positions requirement not met: Positions covered at >= 15x is 94.5%. Must be >= 95%."
+# LP3000115-DNA_G11 QC failed due to invalid BAM (DeliveryID CANCT40004) but then re-delivered and passed (HX01751975) ??? the odd thing is that HX01751975 is delivered earlier
 
-# Exclude FFPE sample with matching normal LP3000069-DNA_E03
-FFPE_list <- FFPE_list %>% filter(Platekey_normal != "LP3000069-DNA_E03")
-dim(FFPE_list)  # 239 samples total
+# # Exclude FFPE sample with matching normal LP3000069-DNA_E03  ---> update: NOT excluding this, needs Bertha QC intake re-run
+# FFPE_list <- FFPE_list %>% filter(Platekey_normal != "LP3000069-DNA_E03")
+# dim(FFPE_list) 
 
 # Compare clean FFPE list with Alona's QC metrics table containing samples that pass contamination QC
-FFPE_list %>% filter(Platekey %in% QC_failed)  # 10/11 samples that fail contamination are still here
+FFPE_list %>% filter(Platekey %in% QC_failed)  # 11/11 samples that fail contamination are still here
 # Remove contaminated samples from the FFPE list
-dim(FFPE_list)  # 239
+dim(FFPE_list)  # 245
 FFPE_list <- FFPE_list %>%  filter(!Platekey %in% QC_failed)  
-dim(FFPE_list)  # 229  # Alona's list has 234; where are the missing 5 samples?
-missing_FFPE <- QC %>% filter(!WELL_ID %in% FFPE_list$Platekey) %>% pull(WELL_ID)
-upload_full %>% filter(Platekey %in% missing_FFPE) # These 5 were lifted from V2 to V4
-upload_full$Platekey <- as.character(upload_full$Platekey)
-table((upload_full %>% filter(Platekey %in% missing_FFPE) %>% pull(`Delivery Version`)), (upload_full %>% filter(Platekey %in% missing_FFPE) %>% pull(Platekey)))
-table((upload_full %>% filter(Platekey %in% missing_FFPE) %>% pull(`Delivery Version`)), (upload_full %>% filter(Platekey %in% missing_FFPE) %>% pull(Platekey)), (upload_full %>% filter(Platekey %in% missing_FFPE) %>% pull(Status)))
-# 4 fail QC in V4 but pass in V2 and one (LP3000074-DNA_D01) is the one where matching normal fails
+dim(FFPE_list)  # 234 (check if they are all in Alona's QC metrics list)
+QC %>% filter(!WELL_ID %in% FFPE_list$Platekey) # all there
 
 
 ##### Final FFPE cohort list ##### 
 
-### Total of 229 samples that have no QC or other issues
+### Total of 234 samples that have no QC or other issues (confirmation pending Bertha QC intake re-run)
 
 # Add QC data to FFPE list
-FFPE_list <- inner_join(FFPE_list, QC, by = c("Platekey" = "WELL_ID"))
-dim(FFPE_list) # 229
+FFPE_list <- full_join(FFPE_list, QC, by = c("Platekey" = "WELL_ID"))
+dim(FFPE_list) # 234
 write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)
+
+
+##### Collect FFPE + normal data from catalog ##### 
+
+# Get germline and tumour QC data and make sure germline is not contaminated
+
+
+
+
 
 
 
