@@ -519,7 +519,7 @@ getBerthaQCmetrics <- function(SAMPLE_WELL_ID, sessionID, studyID="1000000036"){
 
 ### Collect all data from catalog
 all_ids <- c(FFPE_list$Platekey, FFPE_list$Platekey_normal)
-QC_catalog <- bind_rows(lapply(all_ids, getBerthaQCmetrics, sessionID = "dILUsdxVTzLd0mOB3EWS"))  # Re-running Sept 27 2017
+QC_catalog <- bind_rows(lapply(all_ids, getBerthaQCmetrics, sessionID = "dILUsdxVTzLd0mOB3EWS"))  # Re-running Sept 27 2017, Oct 5 2017
 
 # Check that all tumour and germline data is there
 dim(QC_catalog)  # 469  (one extra entry, possibly known sample LP3000115-DNA_G11 that was used for testing and has 2 catalog entries)
@@ -595,13 +595,42 @@ write.csv(missing_verifybamid_list, file = "./Data/missing_verifybamid_list.csv"
 
 
 
+### Collect all data from catalog after Bertha re-run (Oct 5 2017)
+all_ids <- c(FFPE_list$Platekey, FFPE_list$Platekey_normal)
+QC_catalog <- bind_rows(lapply(all_ids, getBerthaQCmetrics, sessionID = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MDcyMTkwOTEsImV4cCI6MTUwNzIyMDg5MX0.7Lkf2q6RZlGze2NsxH2L9RU5wcCqisIk0VHGGxCtJBg"))  # Oct 5 2017
+
+dim(QC_catalog)  # 469
+summary(QC_catalog) 
+
+table(QC_catalog$SAMPLE_TYPE, exclude = NULL)  # 1 NA
+QC_catalog[duplicated(QC_catalog$WELL_ID),]$WELL_ID  # LP3000115-DNA_G11 duplicated
+QC_catalog %>% filter(is.na(SAMPLE_TYPE))  # LP3000067-DNA_H01 
+# Identifying sample LP3000067-DNA_H01
+FFPE_list %>% filter(Platekey == "LP3000067-DNA_H01" | Platekey_normal == "LP3000067-DNA_H01")  # germline of LP3000074-DNA_F05
+upload_full %>% filter(Platekey == "LP3000067-DNA_H01")  # Processed with Bertha 1.1.8 but all fields missing from catalog
+# Removing extra (incomplete) entry of LP3000115-DNA_G11
+QC_catalog <- QC_catalog %>% filter(!(WELL_ID == "LP3000115-DNA_G11" & is.na(GC_DROP)))
+
+# Look for any still missing VerifyBamID contamination for GL
+sum(is.na(QC_catalog[QC_catalog$SAMPLE_TYPE == "GL",]$CONTAMINATION_PCT_VERIFYBAMID))  # 1 missing
+summary((QC_catalog %>% filter(SAMPLE_TYPE == "GL") %>% pull(CONTAMINATION_PCT_VERIFYBAMID)))
+QC_catalog %>% filter(SAMPLE_TYPE == "GL", CONTAMINATION_PCT_VERIFYBAMID > 2) %>% select(WELL_ID, CONTAMINATION_PCT_VERIFYBAMID, CONTAMINATION_PCT_ILLUMINA) # 1 contaminated (LP3000279-DNA_B05)
+
+# VerifyBamID from catalog to the FFPE list
+FFPE_list$CONTAMINATION_PCT_VERIFYBAMID <- QC_catalog[match(FFPE_list$Platekey_normal, QC_catalog$WELL_ID),]$CONTAMINATION_PCT_VERIFYBAMID
+FFPE_list[is.na(FFPE_list$CONTAMINATION_PCT_VERIFYBAMID),] # sample LP3000067-DNA_H01 (GL) still missing contamination info, fails integrity check in Bertha; excluding it
+FFPE_list$Excluded <- 0
+FFPE_list[FFPE_list$Platekey_normal %in% c("LP3000067-DNA_H01", "LP3000279-DNA_B05"),]$Excluded <- 1
+
+# Add missing tumour types and collection date to the FFPE list   ------> continue here
 
 
-##### Summary analysis of QC metrics ##### 
 
-summary(QC)
 
-# Examine contaminated samples (i.e. non "Pass")
-QC %>% filter(TUMOUR_CONTAMINATION_CONTEST != "Pass") %>% select(WELL_ID, TUMOUR_CONTAMINATION_CONTEST, TUMOUR_CONTAMINATION_CONPAIR, TUMOUR_PURITY, TUMOUR_TYPE, COSMIC_COV_LT30X, MEDIAN_COV)
 
-# Establish median +/- 2 SD values for FFPE cohort
+# Compare to just received new QC list from Alona (Oct 5 2017)
+QC_new <- read.csv("./Data/ready_to_upload.09-24-17.csv")
+summary(QC_new)
+  
+  
+  
