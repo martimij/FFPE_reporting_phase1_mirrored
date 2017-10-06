@@ -8,6 +8,8 @@ library(ggplot2)
 library(data.table)
 library(jsonlite)
 
+today <- Sys.Date()
+
 ##### Clean cohort and QC metrics data ##### 
 
 ### Load upload report
@@ -94,7 +96,7 @@ dim(FFPE_list)  # 234 (check if they are all in Alona's QC metrics list)
 QC %>% filter(!WELL_ID %in% FFPE_list$Platekey) # all there
 
 
-##### Final FFPE cohort list ##### 
+#####  FFPE cohort list ##### 
 
 ### Total of 234 samples that have no QC or other issues (confirmation pending Bertha QC intake re-run and VerifyBamID conntamination check for germline)
 
@@ -597,10 +599,9 @@ write.csv(missing_verifybamid_list, file = "./Data/missing_verifybamid_list.csv"
 
 ### Collect all data from catalog after Bertha re-run (Oct 5 2017)
 all_ids <- c(FFPE_list$Platekey, FFPE_list$Platekey_normal)
-QC_catalog <- bind_rows(lapply(all_ids, getBerthaQCmetrics, sessionID = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MDcyMTkwOTEsImV4cCI6MTUwNzIyMDg5MX0.7Lkf2q6RZlGze2NsxH2L9RU5wcCqisIk0VHGGxCtJBg"))  # Oct 5 2017
+QC_catalog <- bind_rows(lapply(all_ids, getBerthaQCmetrics, sessionID = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MDcyODg2NjAsImV4cCI6MTUwNzI5MDQ2MH0.sMcfyhV5SeTbiB608bG-_ESHcI3I2nXa5PTev8FUdsg"))  # Oct 6 2017
 
 dim(QC_catalog)  # 469
-summary(QC_catalog) 
 
 table(QC_catalog$SAMPLE_TYPE, exclude = NULL)  # 1 NA
 QC_catalog[duplicated(QC_catalog$WELL_ID),]$WELL_ID  # LP3000115-DNA_G11 duplicated
@@ -610,6 +611,10 @@ FFPE_list %>% filter(Platekey == "LP3000067-DNA_H01" | Platekey_normal == "LP300
 upload_full %>% filter(Platekey == "LP3000067-DNA_H01")  # Processed with Bertha 1.1.8 but all fields missing from catalog
 # Removing extra (incomplete) entry of LP3000115-DNA_G11
 QC_catalog <- QC_catalog %>% filter(!(WELL_ID == "LP3000115-DNA_G11" & is.na(GC_DROP)))
+
+summary(QC_catalog) 
+QC_catalog[is.na(QC_catalog$GbQ30NoDupsNoClip),]
+
 
 # Look for any still missing VerifyBamID contamination for GL
 sum(is.na(QC_catalog[QC_catalog$SAMPLE_TYPE == "GL",]$CONTAMINATION_PCT_VERIFYBAMID))  # 1 missing
@@ -621,16 +626,106 @@ FFPE_list$CONTAMINATION_PCT_VERIFYBAMID <- QC_catalog[match(FFPE_list$Platekey_n
 FFPE_list[is.na(FFPE_list$CONTAMINATION_PCT_VERIFYBAMID),] # sample LP3000067-DNA_H01 (GL) still missing contamination info, fails integrity check in Bertha; excluding it
 FFPE_list$Excluded <- 0
 FFPE_list[FFPE_list$Platekey_normal %in% c("LP3000067-DNA_H01", "LP3000279-DNA_B05"),]$Excluded <- 1
+FFPE_list$Exclusion_reason <- ""
 
-# Add missing tumour types and collection date to the FFPE list   ------> continue here
+# Check completeness of catalog data for tumour samples and QC metrics (after 7 with missing data were re-run)
+summary(QC_catalog[QC_catalog$SAMPLE_TYPE == "TUMOR",])  
+missing_ffpe <- read.table("./Data/tumour_ffpe_missingQC.txt")
+QC_catalog %>% filter(WELL_ID %in% missing_ffpe$V1)  # data still missing, abandoning catalog reading as a source of info
+
+# Add exclusion reasons to the final FFPE manifest
+FFPE_list$Exclusion_reason <- ""
+
+# Add missing tumour types and collection date to the FFPE list
+missing_clinical <- read.csv("./Data/missing_tumour_types_completed.csv")
+FFPE_list[FFPE_list$TUMOUR_TYPE == "N/A",]$TUMOUR_TYPE <- missing_clinical[match(FFPE_list[FFPE_list$TUMOUR_TYPE == "N/A",]$Platekey, missing_clinical$WELL_ID),]$TUMOUR_TYPE
+FFPE_list$COLLECTION_DATE <- as.character(FFPE_list$COLLECTION_DATE)
+FFPE_list[is.na(FFPE_list$COLLECTION_DATE ),]$COLLECTION_DATE <- ""
+missing_clinical$COLLECTION_DATE <- as.Date(missing_clinical$COLLECTION_DATE, format = "%d/%m/%y")
+#FFPE_list[FFPE_list$COLLECTION_DATE == "",]$COLLECTION_DATE <- missing_clinical[match(FFPE_list[FFPE_list$COLLECTION_DATE == "",]$Platekey, missing_clinical$WELL_ID),]$COLLECTION_DATE
 
 
 
+############ FINAL FFPE cohort cleanup ############ 
+
+# New QC list from Alona (Oct 5 2017) that includes GL samples
+QC_all <- read.csv("./Data/ready_to_upload.09-24-17.csv")
+dim(QC_all)  # 3505
+summary(QC_all)
+table(QC_all$SAMPLE_TYPE, QC_all$LIBRARY_TYPE, exclude = NULL)  # some samples have type "FFPE" but no library prep info (pilot FFPE?)
+sum(duplicated(QC_all$SAMPLE_WELL_ID))  # 0
+
+# Make new, clean FFPE list
+FFPE_list <- upload %>% filter(Plate %in% FFPE_plates)
+dim(FFPE_list)  # 246
+sum(duplicated(FFPE_list$Platekey))  # 1 duplicated (LP3000140-DNA_A03)
+FFPE_list %>% filter(Platekey == FFPE_list[duplicated(FFPE_list$Platekey),]$Platekey)  # One version has a delivery problem, removing (ID BE00000001)
+FFPE_list <- FFPE_list %>% filter(DeliveryID != "BE00000001")
+table(FFPE_list$Status, exclude = NULL)  # 5 samples are QC failed previously, one of them still fails (invalid BAM: LP3000074-DNA_D06)
+FFPE_list %>% filter(Status == "qc_failed") %>% select(Platekey, DeliveryID, `Delivery Date`, `Delivery Version`, Status)
 
 
-# Compare to just received new QC list from Alona (Oct 5 2017)
-QC_new <- read.csv("./Data/ready_to_upload.09-24-17.csv")
-summary(QC_new)
-  
-  
+# Add matching germlines from the upload report, check versions and QC status
+FFPE_list$Path <- as.character(FFPE_list$Path )
+FFPE_list$Platekey_normal <- sapply(FFPE_list$Path, function(x){strsplit(strsplit(x, split = "/")[[1]][6], split = "Normal")[[1]][2]})
+dim(upload %>% filter(Platekey %in% FFPE_list$Platekey_normal))  # 246
+FFPE_list$Platekey_normal[!FFPE_list$Platekey_normal %in% upload$Platekey]  # 0 (no normals missing from upload)
+
+# Add exclusion variable to the final FFPE list
+FFPE_list$Excluded <- 0
+FFPE_list$Exclusion_reason <- ""
+
+# Exclude the sample with invalid tumour BAM
+FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Excluded <- 1
+FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Exclusion_reason <- "Invalid tumour BAM"
+
+# Look at matching normals in the full upload report (2 normals are qc_failed)
+table((upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal) %>% pull(`Delivery Version`)), (upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal) %>% pull(Status)))
+upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal, `Delivery Version` == "V4", Status == "qc_failed")
+normals_failed <- upload_full %>% filter(Platekey %in% FFPE_list$Platekey_normal, `Delivery Version` == "V4", Status == "qc_failed") %>% pull(Platekey)
+FFPE_list[FFPE_list$Platekey_normal %in% normals_failed,]
+upload_full %>% filter(Platekey %in% normals_failed) 
+# LP3000069-DNA_E03 QC-passed when delivered in V2, but failed when it was lifted to V4 (LP3000069-DNA_E03); Bertha error: "Minimum covered positions requirement not met: Positions covered at >= 15x is 94.5%. Must be >= 95%."
+# This is now processed with "nometrics_1-8-0" workflow so it doesn't calculate intake metrics (since the delivery was already accepted); keeping this sample
+# LP3000115-DNA_G11 this sample was used for testing (CANCT40004 ID, small BAM) and should be ignored
+
+# Add tumour QC data to the FFPE list from upload report
+dim(FFPE_list) # 245  14
+FFPE_list <- left_join(FFPE_list, QC_all, by = c("Platekey" = "SAMPLE_WELL_ID"))
+dim(FFPE_list) # 245  43
+
+# Add germline QC data to the FFPE list
+QC_gl <- QC_all %>% filter(SAMPLE_WELL_ID %in% FFPE_list$Platekey_normal)
+QC_gl <- QC_gl %>% select(-(SNV), -(INDEL), -(TUMOUR_PURITY), -(PASS_TO_ANALYSIS), -(TUMOUR_CONTAMINATION), -(DUPLICATE_CHECK), -(SEX_CHECK), -(CENTER_CODE), -(SAMPLE_TYPE), -(PATIENT_ID))
+names(QC_gl) <- paste0(names(QC_gl), "_GL")
+FFPE_list <- left_join(FFPE_list, QC_gl, by = c("Platekey_normal" = "SAMPLE_WELL_ID_GL"))
+
+# Check if all germline passes QC + add exclusions
+# perc_bases_ge_15x_mapQ_ge11 > 95%
+# GbQ30NoDupsNoClip > 85x10^9 (bases with Q>=30)
+
+summary(FFPE_list$perc_bases_ge_15x_mapQ_ge11_GL) # 1 NA
+summary(FFPE_list$GbQ30NoDupsNoClip_GL)  # 1 NA
+FFPE_list[is.na(FFPE_list$perc_bases_ge_15x_mapQ_ge11_GL),] # Sample with NA is LP3000279-DNA_B05 (contaminated)
+
+# Add exclusion
+FFPE_list[FFPE_list$Platekey_normal == "LP3000279-DNA_B05",]$Excluded <- 1
+FFPE_list[FFPE_list$Platekey_normal == "LP3000279-DNA_B05",]$Exclusion_reason <- "GL contaminated"
+
+
+# Check if all tumour passes QC + add exclusions
+# 212.5x10^9 bases with Q>=30
+summary(FFPE_list$GbQ30NoDupsNoClip)  # 11 NA
+FFPE_list[is.na(FFPE_list$GbQ30NoDupsNoClip),] # 11 NAs fail tumour contamination
+
+# Add exclusion
+tumour_contamin <- FFPE_list %>% filter(TUMOUR_CONTAMINATION == "Fail") %>% pull(Platekey)
+FFPE_list[FFPE_list$Platekey %in% tumour_contamin,]$Excluded <- 1
+FFPE_list[FFPE_list$Platekey %in% tumour_contamin,]$Exclusion_reason <- "TUMOUR contaminated"
+
+##### Final FFPE cohort list ##### 
+
+write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)
+
+
   
