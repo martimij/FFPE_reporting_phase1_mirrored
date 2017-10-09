@@ -723,7 +723,22 @@ tumour_contamin <- FFPE_list %>% filter(TUMOUR_CONTAMINATION == "Fail") %>% pull
 FFPE_list[FFPE_list$Platekey %in% tumour_contamin,]$Excluded <- 1
 FFPE_list[FFPE_list$Platekey %in% tumour_contamin,]$Exclusion_reason <- "TUMOUR contaminated"
 
-##### Final FFPE cohort list ##### 
+# Add tumour type and collection date (from original QC, adding missing data)
+missing_clinical <- read.csv("./Data/missing_tumour_types_completed.csv")
+missing_clinical$COLLECTION_DATE <- as.Date(missing_clinical$COLLECTION_DATE, format = "%d/%m/%y")
+QC$COLLECTION_DATE <- as.Date(QC$COLLECTION_DATE)
+QC[QC$TUMOUR_TYPE == "N/A",]$TUMOUR_TYPE <- missing_clinical[match(QC[QC$TUMOUR_TYPE == "N/A",]$WELL_ID, missing_clinical$WELL_ID),]$TUMOUR_TYPE
+table(QC$TUMOUR_TYPE)
+QC[QC$TUMOUR_TYPE == "",]$COLLECTION_DATE <- "1000-01-01"  # Make a placeholder for samples with tumour contaminated so I can merge the collection dates accurately
+sum(is.na(QC$COLLECTION_DATE))  # 50
+QC[is.na(QC$COLLECTION_DATE),]$COLLECTION_DATE <- missing_clinical[match(QC[is.na(QC$COLLECTION_DATE),]$WELL_ID, missing_clinical$WELL_ID),]$COLLECTION_DATE
+QC[QC$TUMOUR_TYPE == "",]$COLLECTION_DATE <- NA
+# Merge with FFPE list
+FFPE_list$TUMOUR_TYPE <- QC[match(FFPE_list$Platekey, QC$WELL_ID),]$TUMOUR_TYPE
+FFPE_list$COLLECTION_DATE <- QC[match(FFPE_list$Platekey, QC$WELL_ID),]$COLLECTION_DATE
+
+
+##### Final FFPE cohort list --- redo after addting tumour type ##### 
 
 write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)
 
