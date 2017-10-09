@@ -10,6 +10,18 @@ library(jsonlite)
 
 today <- Sys.Date()
 
+### Helper objects for plotting
+# Blank theme
+blank <-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"), legend.title=element_blank())
+# Black regression line (linear model)
+regr_line <- geom_smooth(method = "lm", se = F, aes(group = 1), linetype = 2, col = "black", size = 0.5)
+# Bigger plot text
+bigger <- theme(legend.text=element_text(size=15), legend.title = element_text(size=15), axis.title = element_text(size=15), axis.text = element_text(size=15))
+# Tilted x-axis labels
+tiltedX <- theme(axis.text.x=element_text(angle=45,hjust=1))
+
+
+
 ##### Clean cohort and QC metrics data ##### 
 
 ### Load upload report
@@ -737,10 +749,123 @@ QC[QC$TUMOUR_TYPE == "",]$COLLECTION_DATE <- NA
 FFPE_list$TUMOUR_TYPE <- QC[match(FFPE_list$Platekey, QC$WELL_ID),]$TUMOUR_TYPE
 FFPE_list$COLLECTION_DATE <- QC[match(FFPE_list$Platekey, QC$WELL_ID),]$COLLECTION_DATE
 
+# Sanity check
+summary(FFPE_list[FFPE_list$Excluded == 0,])
 
-##### Final FFPE cohort list --- redo after addting tumour type ##### 
+# LP3000074-DNA_D06 (tumour sample that was remapped - BAM needs fixing mate info, but apparently ok)
 
-write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)
+### Add last sample to the cohort
+FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Exclusion_reason <- "Invalid tumour BAM fixed"
+FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Excluded <- 0
+
+
+##### Final FFPE cohort list 
+write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)  # Note that "Status" field is not updated after cleanup (all pass QC)
+
+
+##### Sample level QC metrics summary ##### 
+
+# Distribution of tumour types
+FFPE_list$TUMOUR_TYPE <- as.character(FFPE_list$TUMOUR_TYPE)
+as.data.frame(table(FFPE_list[FFPE_list$Excluded == 0,]$TUMOUR_TYPE))
+
+### Calculate mean +/- 2 SD for QC metrics
+
+QC_summary <- FFPE_list %>% filter(Excluded == 0) %>% summarise(AT_drop_mean = mean(AT_DROP), 
+                                                                AT_drop_sd = sd(AT_DROP), 
+                                                                GC_drop_mean = mean(GC_DROP), 
+                                                                GC_drop_sd = sd(GC_DROP),
+                                                                COVERAGE_HOMOGENEITY_mean = mean(COVERAGE_HOMOGENEITY),
+                                                                COVERAGE_HOMOGENEITY_sd = sd(COVERAGE_HOMOGENEITY),
+                                                                MAPPING_RATE_PER_mean = mean(MAPPING_RATE_PER),
+                                                                MAPPING_RATE_PER_sd = sd(MAPPING_RATE_PER),
+                                                                AV_FRAGMENT_SIZE_BP_mean = mean(AV_FRAGMENT_SIZE_BP),
+                                                                AV_FRAGMENT_SIZE_BP_sd = sd(AV_FRAGMENT_SIZE_BP)
+                                                                )
+
+### Plot metrics, color outliers (mean +/- 2 SD) in red
+
+# Collect samples outside of mean +/- 2 SD range in any QC_summary metrics, color red in plots
+QC_outliers <- unique(c((FFPE_list %>% filter(AT_DROP > (QC_summary$AT_drop_mean+2*QC_summary$AT_drop_sd)) %>% pull(Platekey)),
+                 (FFPE_list %>% filter(GC_DROP < (QC_summary$GC_drop_mean-2*QC_summary$GC_drop_sd)) %>% pull(Platekey)),
+                 (FFPE_list %>% filter(COVERAGE_HOMOGENEITY > (QC_summary$COVERAGE_HOMOGENEITY_mean+2*QC_summary$COVERAGE_HOMOGENEITY_sd)) %>% pull(Platekey)),
+                 (FFPE_list %>% filter(MAPPING_RATE_PER < (QC_summary$MAPPING_RATE_PER_mean-2*QC_summary$MAPPING_RATE_PER_sd)) %>% pull(Platekey)),
+                 (FFPE_list %>% filter(AV_FRAGMENT_SIZE_BP > (QC_summary$AV_FRAGMENT_SIZE_BP_mean+2*QC_summary$AV_FRAGMENT_SIZE_BP_sd)) %>% pull(Platekey))))
+
+FFPE_list$QC_outlier_2sd <- 0
+FFPE_list[FFPE_list$Platekey %in% QC_outliers,]$QC_outlier_2sd <- 1
+
+
+# AT drop
+pdf(file = "./Plots/cohort_QC/AT_DROP.pdf")
+print(ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x="", y=AT_DROP, color = (QC_outlier_2sd + 1))) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() +
+  labs(x = "", y = "AT dropout")  + 
+  bigger +
+  tiltedX +
+  blank +
+  theme(legend.position="none")
+  )
+dev.off()
+
+# GC drop
+pdf(file = "./Plots/cohort_QC/GC_DROP.pdf")
+print(ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x="", y=GC_DROP, color = (QC_outlier_2sd+1))) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() +
+  labs(x = "", y = "GC dropout")  + 
+  bigger + 
+  tiltedX +
+  blank +
+  theme(legend.position="none"))
+dev.off()
+
+# Coverage unevenness
+pdf(file = "./Plots/cohort_QC/COVERAGE_HOMOGENEITY.pdf")
+print(ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x="", y=COVERAGE_HOMOGENEITY, color = (QC_outlier_2sd+1))) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() +
+  labs(x = "", y = "Unevenness of coverage")  + 
+  bigger + 
+  tiltedX +
+  blank +
+  theme(legend.position="none"))
+dev.off()
+
+
+# Mapping rate
+pdf(file = "./Plots/cohort_QC/MAPPING_RATE_PER.pdf")
+print(ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x="", y=MAPPING_RATE_PER, color = (QC_outlier_2sd+1))) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() +
+  labs(x = "", y = "Mapping rate (%)")  + 
+  bigger + 
+  tiltedX +
+  blank +
+  theme(legend.position="none"))
+dev.off()
+
+# Fragment size
+pdf(file = "./Plots/cohort_QC/AV_FRAGMENT_SIZE_BP.pdf")
+print(ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x="", y=AV_FRAGMENT_SIZE_BP, color = (QC_outlier_2sd+1))) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() +
+  labs(x = "", y = "Average fragment size")  + 
+  bigger + 
+  tiltedX +
+  blank +
+  theme(legend.position="none"))
+dev.off()
+
+
+# # Plot mapping rate vs fragment size
+# ggplot(FFPE_list[FFPE_list$Excluded == 0,], aes(x=AV_FRAGMENT_SIZE_BP, y=MAPPING_RATE_PER, color =(QC_outlier_3sd+1))) + 
+#   geom_point() +
+#   regr_line +
+#   blank
+
+
 
 
   
