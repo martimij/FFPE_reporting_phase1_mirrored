@@ -758,6 +758,8 @@ summary(FFPE_list[FFPE_list$Excluded == 0,])
 FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Exclusion_reason <- "Invalid tumour BAM fixed"
 FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Excluded <- 0
 
+# Change vector type
+FFPE_list$PATIENT_ID <- as.character(FFPE_list$PATIENT_ID)
 
 ##### Final FFPE cohort list 
 write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)  # Note that "Status" field is not updated after cleanup (all pass QC)
