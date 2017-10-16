@@ -761,6 +761,14 @@ FFPE_list[FFPE_list$Platekey == "LP3000074-DNA_D06",]$Excluded <- 0
 # Change vector type
 FFPE_list$PATIENT_ID <- as.character(FFPE_list$PATIENT_ID)
 
+### Mark FFPE trios (FFPE sample will not be reported, only FF, but FFPE sample will be used to calculate recurrent variants)
+
+# Read the list of FFPE trios
+FFPE_trios <- read.csv("../FFPE_trio_analysis/Data/QC_all62_FFPE_trios_clean_withPaths.csv")
+FFPE_list <- FFPE_list %>% mutate(Trio = case_when((PATIENT_ID %in% FFPE_trios$PATIENT_ID) ~ 1, TRUE ~ 0))
+# Sanity check (should be 26 clean trios in the main program)
+table(FFPE_list$Trio, exclude = NULL)  # Perfect
+
 ##### Final FFPE cohort list 
 write.csv(FFPE_list, file = "./Data/Clean_FFPE_samplelist.csv", quote = F, row.names = F)  # Note that "Status" field is not updated after cleanup (all pass QC)
 
