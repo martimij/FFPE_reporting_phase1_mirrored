@@ -2,7 +2,6 @@
 #BSUB -J norm_FFPE_VCFs[1-8]
 #BSUB -n 1
 #BSUB -q bio
-#BSUB -R "select[nodsk]"
 #BSUB -o /home/mmijuskovic/bsub_outputs/output.%I.%J
 #BSUB -e /home/mmijuskovic/bsub_outputs/error.%I.%J
 
@@ -33,6 +32,6 @@ do
         # Call normalization script
         /home/mmijuskovic/small_variant_freq/normalise_vcf_MM.sh $workdir $f1 $f2 
         
-done < /home/mmijuskovic/small_variant_freq/FFPE/samples_for_recurrent_calc_normalization_input_${LSB_JOBINDEX}.csv
+done < /home/mmijuskovic/small_variant_freq/FFPE/norm_VCFs_input/samples_for_recurrent_calc_normalization_input_${LSB_JOBINDEX}.csv
 
 

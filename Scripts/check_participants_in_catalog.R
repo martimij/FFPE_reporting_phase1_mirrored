@@ -8,6 +8,9 @@ library(ggplot2)
 library(data.table)
 library(jsonlite)
 
+
+#### Study 1000000041 ####
+
 # Download all cancer participats currently in the catalog (Study: 1000000041, used for interpretation pipeline development by Antonio, everything there at the moment)
 
 getCatalogParticipants <- function(PATIENT_ID, sessionID, studyID="1000000041"){
@@ -73,6 +76,58 @@ names(table_matched) <- c("gelId","germlineSampleId","tumorSampleId")
 
 # Create "table_samples"
 # gelId,sampleId,labId,gelPhase,sampleType,sampleDiagnosis,tumorType,tumorSubType,preservationMethod,phase,method,tumorContent,grade,tnm_stage_version,tmn_stage_grouping,cellularity,sampleSource,clinic_sample_date_time
+
+
+#### Study 1000000038 ####
+
+# Modified study to check if participants are registered in the new study (not checking for LP IDs)
+getCatalogParticipants2 <- function(PATIENT_ID, sessionID, studyID="1000000038"){
+  require(jsonlite)
+  require(dplyr)
+  # Create Catalog 1.0 search command line
+  #curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/individuals/search?sid=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiZXJ0aGEiLCJhdWQiOiJPcGVuQ0dBIHVzZXJzIiwiaWF0IjoxNTA3NjQwNjU5LCJleHAiOjE1MDc2NDI0NTl9.kGXQJE-xRLzL4DfB1dwHwyiUF9gkfUJBmjtkm6SzTYw&study=1000000041&skipCount=false&limit=1"
+  #curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/individuals/search?sid=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiZXJ0aGEiLCJhdWQiOiJPcGVuQ0dBIHVzZXJzIiwiaWF0IjoxNTA3NjQwNjU5LCJleHAiOjE1MDc2NDI0NTl9.kGXQJE-xRLzL4DfB1dwHwyiUF9gkfUJBmjtkm6SzTYw&study=1000000041&name=217000038&skipCount=false&limit=1"
+  
+  command <- paste0('curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/individuals/search?sid=', sessionID, '&study=', studyID, '&name=', PATIENT_ID, '&skipCount=false&limit=1"')
+  # Read in the json file containing the QC metrics for the specific sample
+  bam_json <- fromJSON(system(command, intern = T), flatten = T)
+  
+  if (bam_json$response$numResults == 0) {
+    result <- data.frame(
+      PATIENT_ID = PATIENT_ID,
+      #Platekey_normal = NA,
+      #Platekey = NA
+      Registered = 0
+      )
+    return(result)
+  }
+  result <- data.frame(
+                        #PATIENT_ID = bam_json$response$result[[1]]$name, 
+                       PATIENT_ID = PATIENT_ID,
+                       #Platekey_normal = bam_json$response$result[[1]]$annotationSets[[1]]$annotations[[2]]$value[1],
+                       #Platekey = bam_json$response$result[[1]]$annotationSets[[1]]$annotations[[2]]$value[2])  # Needs fixing in case FF and FFPE exist for this patient
+                       Registered = 1
+                      )
+  return(result)
+}
+
+# Check on 1 participant
+getCatalogParticipants2("217000038", sessionID = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiZXJ0aGEiLCJhdWQiOiJPcGVuQ0dBIHVzZXJzIiwiaWF0IjoxNTA3NjQyODE0LCJleHAiOjE1MDc2NDQ2MTR9.ez-COsAYmyIvPtWTwr3HSzehD3K_NyuhwrRPn2GFBkU")
+
+# Check if participants are registered
+participants_regist <- bind_rows(lapply(FFPE_list$PATIENT_ID, getCatalogParticipants2, sessionID = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiZXJ0aGEiLCJhdWQiOiJPcGVuQ0dBIHVzZXJzIiwiaWF0IjoxNTA3NjQyODE0LCJleHAiOjE1MDc2NDQ2MTR9.ez-COsAYmyIvPtWTwr3HSzehD3K_NyuhwrRPn2GFBkU")) 
+
+
+#### Get clinical info from catalog ####
+
+# curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/cohorts/search?sid=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MDk1NTI5OTcsImV4cCI6MTUwOTU1NDc5N30.Seq3A1J6SchVp_cAci_qQctKesRDw4CVaT3kITgh-Is&study=1000000038&samples=LP2000904-DNA_H01&skipCount=false"
+
+
+
+
+
+
+
 
 
 
