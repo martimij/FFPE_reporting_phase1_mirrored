@@ -16,7 +16,7 @@ samples_for_recurr <- FFPE_list %>% filter(Exclusion_reason == "")
 # Write the sample list (to be transferred to HPC)
 write.csv(samples_for_recurr, file = "./Data/samples_for_recurrent_calc.csv", quote = F, row.names = F)
 
-##### Get VCF paths (run on LSF)
+##### Get VCF paths for normalization (run on LSF)
 
 # Read the table of FFPE samples for reporting/recurrent variant calculation
 samples_for_recurr <- read.csv("/home/mmijuskovic/small_variant_freq/FFPE/samples_for_recurrent_calc.csv", header = T)
@@ -48,11 +48,34 @@ sapply(0:7, function(x){
 })
 
 
+##### Get VCF paths for adding GT on normalized VCFs (run on LSF)
+
+# Read the table of FFPE samples for reporting/recurrent variant calculation (includes original VCF paths)
+samples_for_recurr <- read.csv("/home/mmijuskovic/small_variant_freq/FFPE/samples_for_recurrent_calc_withVCFpaths.csv", header = T)
+
+# Add normalized VCF paths
+samples_for_recurr$norm_SNV_VCF_path <- paste0("/home/mmijuskovic/small_variant_freq/FFPE/norm_VCFs/", samples_for_recurr$Platekey, ".somatic.duprem.left.split.vcf.gz")
+  
+# Write out the table of normalized VCF paths
+write.csv(samples_for_recurr, file = "/home/mmijuskovic/small_variant_freq/FFPE/samples_for_recurrent_calc_withNormVCFpaths.csv", quote = F, row.names = F)
+
+# Split input table into 8 files (for 8 parallel jobs, 29 samples each)
+sapply(0:7, function(x){
+  # Get sample index
+  i <- (x*29)+1
+  j <- i+28
+  z <- x+1
+  # Write input table containing (next) 29 samples
+  tabl <- (samples_for_recurr %>% select(Platekey, norm_SNV_VCF_path))[i:j,]
+  write.table(tabl, file = paste0("/home/mmijuskovic/small_variant_freq/FFPE/addGT_input/samples_for_recurrent_calc_addGT_input_", z, ".csv"), sep = ",", col.names = F, quote = F, row.names = F)
+  
+})
 
 
+##### Get VCF paths for merging somatic VCFs
 
-
-
+vcf_list <- paste0("/home/mmijuskovic/small_variant_freq/FFPE/GT_VCFs/", samples_for_recurr$Platekey, ".GT.duprem.left.split.vcf.gz")
+write.table(vcf_list, file = "./Data/FFPE_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
 
 
 
