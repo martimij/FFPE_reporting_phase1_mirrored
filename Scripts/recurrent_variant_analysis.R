@@ -208,11 +208,25 @@ write.table(tabl_fin, file = paste0("/home/mmijuskovic/small_variant_freq/FF/add
 
 
 
-##### Get VCF paths for merging somatic VCFs
+##### Get VCF paths for merging somatic VCFs (all)
 
 vcf_list <- paste0("/home/mmijuskovic/small_variant_freq/FF/GT_VCFs/", samples_for_recurr$SAMPLE_WELL_ID, ".GT.duprem.left.split.vcf.gz")
 #write.table(vcf_list, file = "./Data/FF_all_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
 write.table(vcf_list, file = "/home/mmijuskovic/small_variant_freq/FF/FF_all_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
+
+
+##### Get VCF paths for merging somatic VCFs (by library prep)
+
+table(FF_list$LIBRARY_TYPE, exclude = NULL)
+
+vcf_list_nano <- paste0("/home/mmijuskovic/small_variant_freq/FF/GT_VCFs/", FF_list[FF_list$LIBRARY_TYPE == "TruSeq Nano",]$SAMPLE_WELL_ID, ".GT.duprem.left.split.vcf.gz")
+write.table(vcf_list_nano, file = "./Data/FF_nano_mainProgram_2017.txt", col.names = F, quote = F, row.names = F) 
+  
+vcf_list_PCRfree <- paste0("/home/mmijuskovic/small_variant_freq/FF/GT_VCFs/", FF_list[FF_list$LIBRARY_TYPE == "TruSeq PCR-Free",]$SAMPLE_WELL_ID, ".GT.duprem.left.split.vcf.gz")
+write.table(vcf_list_PCRfree, file = "./Data/FF_PCRfree_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
+
+
+
 
 
 
