@@ -4,6 +4,8 @@
 # Sept 2017
 
 library(dplyr)
+library(VariantAnnotation)
+library(ggplot2)
 
 today <- Sys.Date()
 
@@ -224,6 +226,143 @@ write.table(vcf_list_nano, file = "./Data/FF_nano_mainProgram_2017.txt", col.nam
   
 vcf_list_PCRfree <- paste0("/home/mmijuskovic/small_variant_freq/FF/GT_VCFs/", FF_list[FF_list$LIBRARY_TYPE == "TruSeq PCR-Free",]$SAMPLE_WELL_ID, ".GT.duprem.left.split.vcf.gz")
 write.table(vcf_list_PCRfree, file = "./Data/FF_PCRfree_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
+
+
+
+
+
+########## Read merged VCFs (PASS, coding regions) ########## 
+
+###### FFPE
+
+# Read merged VCF
+ffpe_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
+ffpe_info <- as.data.frame(info(ffpe_vcf))
+
+# Add variant info
+ffpe_info$ID <- names(ranges(ffpe_vcf))
+ffpe_info$CHR <- as.character(seqnames(ffpe_vcf))
+ffpe_info$POS <- ffpe_vcf@rowRanges@ranges@start
+ffpe_info$REF <- as.data.frame(ref(ffpe_vcf))$x
+ffpe_info$ALT <- as.data.frame(alt(ffpe_vcf))$value
+
+# Make key
+ffpe_info$KEY <- sapply(1:dim(ffpe_info)[x], function(x){
+  paste(ffpe_info$CHR[x], ffpe_info$POS[x], ffpe_info$REF[x], ffpe_info$ALT[x], sep = "_")
+})
+
+# Cleanup
+rm(ffpe_vcf)
+
+
+
+###### FF
+
+# Read merged VCF (PCRfree)
+ff_PCRfree_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_PCRfree_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
+ff_nano_vcf  <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_nano_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
+ff_PCRfree_info <-  as.data.frame(info(ff_PCRfree_vcf))
+ff_nano_info <-  as.data.frame(info(ff_nano_vcf))
+
+
+# Add variant info
+ff_PCRfree_info$ID <- names(ranges(ff_PCRfree_vcf))
+ff_PCRfree_info$CHR <- as.character(seqnames(ff_PCRfree_vcf))
+ff_PCRfree_info$POS <- ff_PCRfree_vcf@rowRanges@ranges@start
+ff_PCRfree_info$REF <- as.data.frame(ref(ff_PCRfree_vcf))$x
+ff_PCRfree_info$ALT <- as.data.frame(alt(ff_PCRfree_vcf))$value
+
+ff_nano_info$ID <- names(ranges(ff_nano_vcf))
+ff_nano_info$CHR <- as.character(seqnames(ff_nano_vcf))
+ff_nano_info$POS <- ff_nano_vcf@rowRanges@ranges@start
+ff_nano_info$REF <- as.data.frame(ref(ff_nano_vcf))$x
+ff_nano_info$ALT <- as.data.frame(alt(ff_nano_vcf))$value
+
+# Make key
+ff_PCRfree_info$KEY <- sapply(1:dim(ff_PCRfree_info)[x], function(x){
+  paste(ff_PCRfree_info$CHR[x], ff_PCRfree_info$POS[x], ff_PCRfree_info$REF[x], ff_PCRfree_info$ALT[x], sep = "_")
+})
+ff_nano_info$KEY <- sapply(1:dim(ff_nano_info)[x], function(x){
+  paste(ff_nano_info$CHR[x], ff_nano_info$POS[x], ff_nano_info$REF[x], ff_nano_info$ALT[x], sep = "_")
+})
+
+# Cleanup
+rm(ff_PCRfree_vcf,ff_nano_vcf)
+
+
+
+####### Sanity check
+
+# Number of variants corresponding to expected (compared to vt peek)? -ok
+dim(ffpe_info) # 586660
+dim(ff_nano_info) # 279270
+dim(ff_PCRfree_info) # 1659842
+
+# Duplicate keys? (none expected)
+sum(duplicated(ffpe_info$KEY))  # 216460
+sum(duplicated(ff_nano_info$KEY))  # 101689
+sum(duplicated(ff_PCRfree_info$KEY))  # 636164
+
+
+# Look at examples of duplicated variants (artefacts created during coding region subset; not present in the previous step)
+ffpe_dups <- ffpe_info$KEY[duplicated(ffpe_info$KEY)]
+head(ffpe_info %>% filter(KEY %in% ffpe_dups))
+
+# Check if all duplicates are exact copies of the same row
+sum(duplicated(ffpe_info)) # should be 216460
+
+# Removing duplicates
+ffpe_info <- ffpe_info[!duplicated(ffpe_info$KEY),]
+ff_nano_info <- ff_nano_info[!duplicated(ff_nano_info$KEY),]
+ff_PCRfree_info <- ff_PCRfree_info[!duplicated(ff_PCRfree_info$KEY),]
+
+# Check
+dim(ffpe_info) # 370200
+dim(ff_nano_info) # 177581
+dim(ff_PCRfree_info) # 1023678
+
+
+
+########## Variant overlap and frequency plots ########## 
+
+# Calculate VF (variant frequency) as AC/total samples (FFPE: 232, FF-nano: 136, FF-PCRfree: 925)
+ffpe_info$VF <- as.numeric(ffpe_info$AC) / 232
+ff_nano_info$VF <- as.numeric(ff_nano_info$AC) / 136
+ff_PCRfree_info$VF <- as.numeric(ff_PCRfree_info$AC) / 925
+
+# Plot VF (FFPE only)
+ggplot(ffpe_info, aes(x=VF)) +
+  geom_histogram(bins = 50) +
+  #scale_x_log10() +
+  scale_y_log10() +
+  blank
+
+# Put all data together to compare VFs
+ffpe_info$group <- "FFPE"
+ff_nano_info$group <- "FF TruSeq nano"
+ff_PCRfree_info$group <- "FF TruSeq PCRfree"
+all_coding <- rbind(ffpe_info, ff_nano_info, ff_PCRfree_info)
+
+# Plot VF (all)
+# ggplot(all_coding, aes(x=VF, col = group)) +
+#   geom_freqpoly(bins = 100) +
+#   scale_x_log10(limits = c(0.0001,1)) +
+#   scale_y_log10() +
+#   #scale_x_continuous(limits = c(0,1)) +
+#   blank
+
+pdf(file = "./Plots/recurrent_variants/somatic_var_freq.pdf", width = 10, height = 5)
+print(
+ggplot(all_coding, aes(x=VF, col = group)) +
+  geom_freqpoly(bins = 50) +
+  #scale_x_log10(limits = c(0.0001,1)) +
+  scale_y_log10() +
+  scale_x_continuous(limits = c(0,1), breaks = seq(0,1,by=0.1)) +
+  labs(x = "Variant Frequency", y = "Variant Count (log)") +
+  blank +
+  bigger
+)
+dev.off()
 
 
 
