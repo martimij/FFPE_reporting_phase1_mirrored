@@ -300,6 +300,8 @@ dim(ff_PCRfree_info) # 1659842
 
 # Duplicate keys? (none expected)
 sum(duplicated(ffpe_info$KEY))  # 216460
+sum(duplicated(ffpe_info)) # 216460 (all duplicates also have full INFO duplicated)
+length(unique(ffpe_info$KEY)) # 370200
 sum(duplicated(ff_nano_info$KEY))  # 101689
 sum(duplicated(ff_PCRfree_info$KEY))  # 636164
 
@@ -320,6 +322,7 @@ ff_PCRfree_info <- ff_PCRfree_info[!duplicated(ff_PCRfree_info$KEY),]
 dim(ffpe_info) # 370200
 dim(ff_nano_info) # 177581
 dim(ff_PCRfree_info) # 1023678
+
 
 
 
@@ -365,7 +368,61 @@ ggplot(all_coding, aes(x=VF, col = group)) +
 dev.off()
 
 
+########## Analysis by tumour type ########## 
 
+# FFPE tumour type distribution
+as.data.frame(table(FFPE_list[FFPE_list$Exclusion_reason == "",]$TUMOUR_TYPE, exclude = NULL))
+
+# FF PCR-free tumour type distribution  (no tumour type available)
+#as.data.frame(table(FF_list[FF_list$LIBRARY_TYPE == "TruSeq PCR-Free",]$TUMOUR_TYPE, exclude = NULL))
+
+# FF nano tumour type distribution (no tumour type available)
+#as.data.frame(table(FF_list[FF_list$LIBRARY_TYPE == "TruSeq Nano",]$TUMOUR_TYPE, exclude = NULL))
+
+
+
+
+########## Recurrent variants in Domain 1,2 ########## 
+
+# Subset variants to VF >= 10%
+dim(all_coding)
+all_coding_recurr <- all_coding %>% filter(VF >= 0.1)
+dim(all_coding_recurr)
+
+# Recurrent variants by group
+table(all_coding_recurr$group)
+
+##### Overlap of recurrent variants
+pcrfree_keys <- all_coding_recurr %>% filter(group == "FF TruSeq PCRfree") %>% pull(KEY)  # 3
+nano_keys <- all_coding_recurr %>% filter(group == "FF TruSeq nano") %>% pull(KEY)  # 1405
+ffpe_keys <- all_coding_recurr %>% filter(group == "FFPE") %>% pull(KEY)  # 1456
+
+
+### FF PCR-free recurrent variants
+
+sum(pcrfree_keys %in% nano_keys)  # 2
+sum(pcrfree_keys %in% ffpe_keys)  # 0
+
+# Recurrent variants in FF PCR-free
+all_coding_recurr %>% filter(group == "FF TruSeq PCRfree") %>% dplyr::select(KEY, ID, VF, AF1000G, CSQT)
+all_coding_recurr %>% filter(group == "FF TruSeq PCRfree", KEY %in% nano_keys) %>% dplyr::select(KEY, ID, VF, AF1000G, CSQT)
+
+
+### Overlap of FFPE and FF nano recurrent variants
+
+length(ffpe_keys)  # 1456
+length(nano_keys) # 1405
+sum(ffpe_keys %in% nano_keys) # 846 OVERLAP
+
+### Recurrent variants observed in the germline
+
+# Allele frequency in 1000G > 1%
+table(all_coding_recurr[all_coding_recurr$AF1000G > 0.01,]$group, exclude = NULL)
+
+nano_keys_leaks <- all_coding_recurr %>% filter(group == "FF TruSeq nano", AF1000G > 0.01) %>% pull(KEY) 
+ffpe_keys_leaks <- all_coding_recurr %>% filter(group == "FFPE", AF1000G > 0.01) %>% pull(KEY)
+
+sum(nano_keys_leaks %in% ffpe_keys_leaks )  # 115 overlap
 
 
 
