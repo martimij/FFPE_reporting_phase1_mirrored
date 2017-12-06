@@ -6,6 +6,7 @@
 library(dplyr)
 library(VariantAnnotation)
 library(ggplot2)
+library(VennDiagram)
 
 today <- Sys.Date()
 
@@ -326,7 +327,7 @@ dim(ff_PCRfree_info) # 1023678
 
 
 
-########## Variant overlap and frequency plots ########## 
+########## Variant frequency plots ########## 
 
 # Calculate VF (variant frequency) as AC/total samples (FFPE: 232, FF-nano: 136, FF-PCRfree: 925)
 ffpe_info$VF <- as.numeric(ffpe_info$AC) / 232
@@ -368,6 +369,80 @@ ggplot(all_coding, aes(x=VF, col = group)) +
 dev.off()
 
 
+### Distribution by variant type
+
+# Add type (SNV, indel)
+# Below is too slow...
+# all_coding$VAR_TYPE <- sapply(1:dim(all_coding)[1], function(x){
+#   if(nchar(all_coding$REF)[x]==1 & nchar(all_coding$ALT)[x]==1){ "SNV" }
+#   else { "INDEL" }
+# })
+
+all_coding_recurr$VAR_TYPE <- sapply(1:dim(all_coding_recurr)[1], function(x){
+  if(nchar(all_coding_recurr$REF)[x]==1 & nchar(all_coding_recurr$ALT)[x]==1){ "SNV" }
+  else { "INDEL" }
+})
+
+all_coding$REF_length <- nchar(all_coding$REF)
+all_coding$ALT_length <- nchar(all_coding$ALT)
+all_coding$VAR_TYPE <- all_coding$REF_length + all_coding$ALT_length
+all_coding$VAR_TYPE <- as.character(all_coding$VAR_TYPE)
+all_coding[all_coding$VAR_TYPE != "2",]$VAR_TYPE <- "INDEL"
+all_coding[all_coding$VAR_TYPE != "INDEL",]$VAR_TYPE <- "SNV"
+
+
+
+# Summary of recurrent by variant type and group
+table(all_coding_recurr$group, all_coding_recurr$VAR_TYPE)
+table(all_coding$group, all_coding$VAR_TYPE)
+
+# Plot frequency distribution by variant type
+pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFPE.pdf", width = 10, height = 5)
+print(
+  ggplot((all_coding %>% filter(group == "FFPE")), aes(x=VF, col = VAR_TYPE)) +
+    geom_freqpoly(bins = 50) +
+    #scale_x_log10(limits = c(0.0001,1)) +
+    scale_y_log10() +
+    scale_x_continuous(limits = c(0,1), breaks = seq(0,1,by=0.1)) +
+    labs(x = "Variant Frequency", y = "Variant Count (log)") +
+    blank +
+    bigger
+)
+dev.off()
+
+pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFpcrfree.pdf", width = 10, height = 5)
+print(
+  ggplot((all_coding %>% filter(group == "FF TruSeq PCRfree")), aes(x=VF, col = VAR_TYPE)) +
+    geom_freqpoly(bins = 50) +
+    #scale_x_log10(limits = c(0.0001,1)) +
+    scale_y_log10() +
+    scale_x_continuous(limits = c(0,1), breaks = seq(0,1,by=0.1)) +
+    labs(x = "Variant Frequency", y = "Variant Count (log)") +
+    blank +
+    bigger
+)
+dev.off()
+
+pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFnano.pdf", width = 10, height = 5)
+print(
+  ggplot((all_coding %>% filter(group == "FF TruSeq nano")), aes(x=VF, col = VAR_TYPE)) +
+    geom_freqpoly(bins = 50) +
+    #scale_x_log10(limits = c(0.0001,1)) +
+    scale_y_log10() +
+    scale_x_continuous(limits = c(0,1), breaks = seq(0,1,by=0.1)) +
+    labs(x = "Variant Frequency", y = "Variant Count (log)") +
+    blank +
+    bigger
+)
+dev.off()
+
+
+
+
+
+
+
+
 ########## Analysis by tumour type ########## 
 
 # FFPE tumour type distribution
@@ -382,7 +457,7 @@ as.data.frame(table(FFPE_list[FFPE_list$Exclusion_reason == "",]$TUMOUR_TYPE, ex
 
 
 
-########## Recurrent variants in Domain 1,2 ########## 
+########## Recurrent variants summary and overlap ########## 
 
 # Subset variants to VF >= 10%
 dim(all_coding)
@@ -425,6 +500,115 @@ ffpe_keys_leaks <- all_coding_recurr %>% filter(group == "FFPE", AF1000G > 0.01)
 sum(nano_keys_leaks %in% ffpe_keys_leaks )  # 115 overlap
 
 
+### Overlap between recurrent variants in FFPE and FF nano
+grid.newpage()
+pdf(file = "./Plots/recurrent_variants/NanoVsFFPE_venn.pdf")
+print(
+  draw.pairwise.venn(length(nano_keys), length(ffpe_keys), sum(ffpe_keys %in% nano_keys), c("FF nano", "FFPE"), fill = c("hotpink", "turquoise3"), lwd = 1, cat.fontfamily = rep("ArialMT", 2), fontfamily = rep("ArialMT", 3), alpha = rep(0.4, 2), cex = rep(1.5, 3), cat.cex = rep(1.2, 2))
+)
+dev.off()
+grid.newpage()
 
 
 
+
+
+
+
+
+
+###### Comparison to FFPE trio analysis ###### 
+
+### Is the variant observed as recurrent (>10%) in the FFPE trio analysis?
+
+# Load FFPE trio recurrent variant table (non-unique, all entries there)
+trio_recurr <- read.table("/Users/MartinaMijuskovic/FFPE_trio_analysis/Data/SNV/var_recurrent_FF_FFPE_BOTH.tsv", header = T, sep = "\t")
+dim(trio_recurr)
+head(trio_recurr)
+table(trio_recurr$RECURR_TYPE)
+
+# Subset to variants recurrent in FFPE 
+trio_recurr_ffpe <- trio_recurr %>% filter(SAMPLE_TYPE == "FFPE")
+trio_recurr_ffpe_summary <- lapply(unique(trio_recurr_ffpe$KEY), function(x){
+  data.frame(KEY = x, NUM_OBS_FFPE = dim(trio_recurr_ffpe[trio_recurr_ffpe$KEY == x,])[1])
+}
+)
+trio_recurr_ffpe_summary <- bind_rows(trio_recurr_ffpe_summary)
+
+dim(trio_recurr_ffpe_summary) # 433
+length(unique(trio_recurr_ffpe_summary$KEY))  # 433
+dim(trio_recurr_ffpe_summary %>% filter(NUM_OBS_FFPE >= 6))  # 197  (in agreement to FFPE trio analysis)
+
+
+# Sanity check (compare merged VCF variants to FFPE trio analysis)
+recurr_trio_keys <- paste0("chr", (trio_recurr_ffpe_summary %>% filter(NUM_OBS_FFPE >= 6) %>% pull(KEY)))  # 197
+full_ffpe_cohort_recurr_keys <- all_coding_recurr %>% filter(group == "FFPE", VF >= 0.1) %>% pull(KEY) # 1456
+sum(recurr_trio_keys %in% full_ffpe_cohort_recurr_keys)  # 109/197 overlap (recurrent at 10%+ in full cohort and trios)
+non_overl_ffpe_recurr_keys <- recurr_trio_keys[!recurr_trio_keys %in% full_ffpe_cohort_recurr_keys]  # 88 don't overlap
+# Are FFPE trio recurrent keys that are not >10% in the full cohort observed in full cohort? If yes, what frequencies (5-10%)?
+sum(non_overl_ffpe_recurr_keys %in% all_coding$KEY)  # 88/88 observed
+
+# Summary of VF for non-overlapping variants in the full FFPE cohort
+summary(all_coding %>% filter(group == "FFPE", KEY %in% non_overl_ffpe_recurr_keys) %>% pull(VF))
+
+# Plot frequency distribution of FFPE trio recurrent variants that are not recurrent in full FFPE cohort
+pdf(file = "./Plots/recurrent_variants/ffpe_trio_recurr_not_observedInFullCohort.pdf", width = 10, height = 5)
+print(
+ggplot(all_coding[all_coding$KEY %in% non_overl_ffpe_recurr_keys,], aes(x=VF, col = group)) +
+  geom_freqpoly(bins = 30) +
+  #scale_x_log10(limits = c(0.0001,1)) +
+  #scale_y_log10() +
+  scale_x_continuous(limits = c(0,1), breaks = seq(0,1,by=0.1)) +
+  #labs(x = "Variant Frequency", y = "Variant Count (log)") +
+  labs(x = "Variant Frequency", y = "Variant Count") +
+  blank +
+  bigger
+)
+dev.off()
+
+
+
+
+
+
+
+
+
+###### Overlap with simple repeats ###### 
+
+### Create bed files (0-based pos) with all variants to calculate TRF simple repeat overlap
+
+# Correct (direct) TRF overlap (for deletions, use bed file with deletion width)
+# Change to bed 0-based format
+all_coding$length <- sapply(1:dim(all_coding)[1], function(x) { max(all_coding$REF_length[x], all_coding$ALT_length[x]) - 1 })
+all_coding$POS <- as.numeric(all_coding$POS)
+
+all_coding <- all_coding %>% mutate(start_bed = case_when(length == 0 ~ (POS - 1), 
+                                                    length != 0 ~ POS),
+                              end_bed = case_when(length == 0 ~ POS,
+                                                  length != 0 ~ (POS + length)))
+all_coding_bed <- all_coding %>% dplyr::select(CHR, start_bed, end_bed, KEY)
+
+write.table(all_coding_bed, file = "./Data/all_coding.bed", quote = F, row.names = F, col.names = F, sep = "\t")
+
+
+# Call bedtools to find  overlaps with TRF simple repeats (CORRECTED)
+system(paste("bedtools coverage -a /Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding.bed -b /Users/MartinaMijuskovic/FFPE/simpleRepeat.hg38.bed > /Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding_simpleRepeat_DIRECToverlap.bed"), intern = T)
+simpleRepeat_overlap <- read.table("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding_simpleRepeat_DIRECToverlap.bed", sep = "\t")
+names(simpleRepeat_overlap) <- c("CHR", "START", "END", "KEY", "NumOverlap", "BPoverlap", "BPTotal", "PCT")
+# Add new flag
+simpleRepeat_keys <- unique(as.character(simpleRepeat_overlap %>% filter(NumOverlap != 0) %>% .$KEY))  # 76714 keys
+all_coding$simpleRepeat_overlap <- 0
+all_coding[(all_coding$KEY %in% simpleRepeat_keys),]$simpleRepeat_overlap <- 1
+table(all_coding$simpleRepeat_overlap, exclude = NULL)
+
+
+### Proportion of recurrent variants overlapping simple repeats
+
+
+
+
+
+
+
+###### Tiering into Domains 1-3  ###### 
