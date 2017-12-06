@@ -1,0 +1,20 @@
+	1. Save the header
+		bcftools view FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz -h > FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.header
+	2. Sort and deduplicate headless VCF
+		bcftools view FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz -H | sort |  uniq > FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.vcf
+	3. Put header back on
+		cat FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.header FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.vcf > FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.wHeader.vcf
+	4. Sort
+		vt sort FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.wHeader.vcf -o FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf
+	5. Index
+		bgzip FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf
+		
+		tabix FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf.gz 
+		
+	6. Validate
+		vt peek FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf.gz
+		
+	7. Clean-up
+		 rm FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.wHeader.vcf
+		 rm FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.duprem.vcf
+ 		 rm FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.header
