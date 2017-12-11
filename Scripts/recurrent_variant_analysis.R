@@ -7,6 +7,7 @@ library(dplyr)
 library(VariantAnnotation)
 library(ggplot2)
 library(VennDiagram)
+library(scales)
 
 today <- Sys.Date()
 
@@ -327,7 +328,7 @@ dim(ff_PCRfree_info) # 1023678
 
 
 
-########## Variant frequency plots ########## 
+########## Variant frequency plots and summary ########## 
 
 # Calculate VF (variant frequency) as AC/total samples (FFPE: 232, FF-nano: 136, FF-PCRfree: 925)
 ffpe_info$VF <- as.numeric(ffpe_info$AC) / 232
@@ -437,7 +438,98 @@ print(
 dev.off()
 
 
+### Summary of coding variants by frequency bin
 
+# Total variants per group
+all_coding %>% group_by(group) %>% summarise(TOTAL_VARIANTS = n())
+
+# Variants per group at VF>10%
+table((all_coding$VF >= 0.1), all_coding$group)
+# VF < 5%
+table((all_coding$VF < 0.05), all_coding$group)
+
+
+### Barplot (by group) of VF bins
+
+# Add bins
+# Add VAF bin to variants table (note that nano sample size is 136 so lowest VF is 1/136=0.7%)
+all_coding$VF_BIN <- sapply(1:dim(all_coding)[1], function(x){
+  if (all_coding$VF[x] >= 0.1) {">10%"}
+  else if (all_coding$VF[x] >= 0.05) {"5-10%"}
+  else if (all_coding$VF[x] >= 0.01) {"1-5%"}
+  else {"<1%"}
+})
+table(all_coding$VF_BIN, all_coding$group)
+table(all_coding$VF_BIN, all_coding$group, all_coding$simpleRepeat_overlap)
+
+# Flag private variants
+all_coding <- all_coding %>% mutate(private = case_when(group == "FFPE" & VF < 0.008 ~ 1,
+                                                        group == "FF TruSeq nano" & VF < 0.01 ~ 1,
+                                                        group == "FF TruSeq PCRfree" & VF < 0.002 ~ 1,
+                                                        TRUE ~ 0))
+table(all_coding$group, all_coding$private)
+table(all_coding$private, all_coding$VF_BIN, all_coding$group)
+
+# Make new variable for plotting
+all_coding <- all_coding %>% mutate(`Variant Frequency` = case_when(private == 0 ~ VF_BIN, TRUE ~ "private"))
+table(all_coding$group, all_coding$`Variant Frequency`)
+table(all_coding$VAR_TYPE, all_coding$group)
+table(all_coding$group, all_coding$`Variant Frequency`, all_coding$VAR_TYPE)
+
+
+# Barplot by VF bins
+all_coding_summary <- as.data.frame(table(all_coding$group, all_coding$`Variant Frequency`))
+# Reorder the levels for plotting
+# levels(all_coding_summary$Var2)
+# levels(all_coding_summary$Var2) <- c("<1%" ,    ">10%" ,   "1-5%" ,   "5-10%"  , "private") 
+all_coding_summary$Var2 <- factor(all_coding_summary$Var2, levels = rev(c("private", "<1%", "1-5%", "5-10%", ">10%")))
+
+pdf(file = paste0("./Plots/recurrent_variants/withPrivate_byGroup.pdf"))
+print(
+ggplot(all_coding_summary, aes(x=Var1, y=Freq, fill = Var2))  +
+  geom_bar(position = "fill",stat = "identity") + 
+  scale_y_continuous(labels = percent_format()) + 
+  bigger +
+  tiltedX +
+  labs(x="",y="") +
+  blank
+)
+dev.off()
+
+# Same barplot, but omitting private variants
+all_coding_summary_nonPrivate <- as.data.frame(table(all_coding[all_coding$private == 0,]$group, all_coding[all_coding$private == 0,]$`Variant Frequency`))
+# Reorder the levels for plotting
+all_coding_summary_nonPrivate$Var2 <- factor(all_coding_summary_nonPrivate$Var2, levels = rev(c("<1%", "1-5%", "5-10%", ">10%")))
+
+pdf(file = paste0("./Plots/recurrent_variants/nonPrivate_byGroup.pdf"))
+print(
+ggplot(all_coding_summary_nonPrivate, aes(x=Var1, y=Freq, fill = Var2))  +
+  geom_bar(position = "fill",stat = "identity") + 
+  scale_y_continuous(labels = percent_format()) + 
+  bigger +
+  tiltedX +
+  labs(x="",y="") +
+  blank
+)
+dev.off()
+
+
+# Putting private and <1% together
+
+all_coding_summary2 <- as.data.frame(table(all_coding$group, all_coding$VF_BIN))
+all_coding_summary2$Var2 <- factor(all_coding_summary2$Var2, levels = rev(c("<1%", "1-5%", "5-10%", ">10%")))
+
+pdf(file = paste0("./Plots/recurrent_variants/VF_bins_byGroup.pdf"))
+print(
+  ggplot(all_coding_summary2, aes(x=Var1, y=Freq, fill = Var2))  +
+    geom_bar(position = "fill",stat = "identity") + 
+    scale_y_continuous(labels = percent_format()) + 
+    bigger +
+    tiltedX +
+    labs(x="",y="") +
+    blank
+)
+dev.off()
 
 
 
@@ -592,7 +684,7 @@ all_coding_bed <- all_coding %>% dplyr::select(CHR, start_bed, end_bed, KEY)
 write.table(all_coding_bed, file = "./Data/all_coding.bed", quote = F, row.names = F, col.names = F, sep = "\t")
 
 
-# Call bedtools to find  overlaps with TRF simple repeats (CORRECTED)
+# Call bedtools to find  overlaps with TRF simple repeats
 system(paste("bedtools coverage -a /Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding.bed -b /Users/MartinaMijuskovic/FFPE/simpleRepeat.hg38.bed > /Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding_simpleRepeat_DIRECToverlap.bed"), intern = T)
 simpleRepeat_overlap <- read.table("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/all_coding_simpleRepeat_DIRECToverlap.bed", sep = "\t")
 names(simpleRepeat_overlap) <- c("CHR", "START", "END", "KEY", "NumOverlap", "BPoverlap", "BPTotal", "PCT")
@@ -605,10 +697,69 @@ table(all_coding$simpleRepeat_overlap, exclude = NULL)
 
 ### Proportion of recurrent variants overlapping simple repeats
 
+table(all_coding$VF > 0.1, all_coding$group, all_coding$simpleRepeat_overlap, exclude = NULL)  # too few >10% variants in FF PCR-free for comparison
 
 
 
+# Correct factor order
+table(all_coding$VF_BIN)
+all_coding$VF_BIN <- factor(all_coding$VF_BIN, levels = c(">10%", "5-10%", "1-5%", "<1%"))
+table(all_coding$VF_BIN)
 
+table(all_coding$group)
+all_coding$group <- factor(all_coding$group, levels = c("FF TruSeq PCRfree", "FF TruSeq nano", "FFPE"))
+table(all_coding$group)
+
+# Sort data
+all_coding <- with(all_coding, all_coding[order(VF_BIN, simpleRepeat_overlap, group),])
+
+# Simple repeat overlap summary
+table(all_coding$VF_BIN, all_coding$simpleRepeat_overlap, all_coding$group)
+#all_coding %>% group_by(group, VF_BIN, simpleRepeat_overlap) %>% summarise(n())
+table(all_coding$VF > 0.01, all_coding$simpleRepeat_overlap, all_coding$group)
+
+
+### Barplot colored by simple repeat overlap by VF bins, by group
+
+pdf(file = "./Plots/recurrent_variants/simpleRep_overlap_bins.pdf", width = 10, height = 5)
+print(
+  ggplot(all_coding, aes(x=group, fill = factor(simpleRepeat_overlap))) +
+    #geom_bar(stat = "identity") +
+    geom_bar() +
+    facet_grid(~VF_BIN) +
+    #blank +
+    tiltedX +
+    labs(fill="") +
+    bigger
+  )  
+dev.off()
+
+# Barplot (excluding <1% variants)
+pdf(file = "./Plots/recurrent_variants/simpleRep_overlap_bins_recurrOnly.pdf", width = 10, height = 5)
+print(
+  ggplot((all_coding %>% filter(VF_BIN != "<1%")), aes(x=group, fill = factor(simpleRepeat_overlap))) +
+    #geom_bar(stat = "identity") +
+    geom_bar() +
+    facet_grid(~VF_BIN) +
+    #blank +
+    tiltedX +
+    labs(fill="", x="") +
+    bigger
+)  
+dev.off()
 
 
 ###### Tiering into Domains 1-3  ###### 
+
+
+
+
+
+
+
+
+
+
+
+
+
