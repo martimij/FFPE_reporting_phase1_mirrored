@@ -8,6 +8,7 @@ library(VariantAnnotation)
 library(ggplot2)
 library(VennDiagram)
 library(scales)
+library(ensembldb)
 
 today <- Sys.Date()
 
@@ -751,15 +752,209 @@ dev.off()
 
 ###### Tiering into Domains 1-3  ###### 
 
+# Get the list of ENSEMBL transcripts with tiers (GO v1.5)
+all_GO_tr <- read.table("./Data/transcripts_v1p5/GENOMONCOLOGY_SOLID_TUMOUR.tsv", header = T, sep = "\t") 
+
+# Domain 1 transcripts
+domain1_tr <- unique(all_GO_tr$transcript_ID)
+length(domain1_tr) # 113
+
+# Cancer census genes
+cancer_census_tr <- read.table("./Data/transcripts_v1p5/CANCER_CENSUS_GENES.tsv", header = T, sep = "\t")
+
+# Domain 2 transcripts
+domain2_tr <- unique(cancer_census_tr$transcript_ID)
+length(domain2_tr)  # 566
+
+
+
+### Function to annotate small variants POS with ENSEMBL transcripts (assumes chr names have "chr")
+annGenes_smallVar <- function(vcf_info, transcripts){
+  
+  require(ensembldb)
+  require(dplyr)
+  
+  # Create number-only chromosome names
+  vcf_info$CHR_ <- vcf_info$CHR
+  vcf_info$CHR <- sub(vcf_info$CHR, pattern = "chr", replacement = "")
+  
+  txdb_pth <- '/Users/MartinaMijuskovic/cancer_SV_pipeline_dev/Homo_sapiens.GRCh38.84.sqlite'
+  if (!file.exists(txdb_pth)) {
+    #txdb_pth <- ensDbFromGtf(gtf="../Ensembl_db/Homo_sapiens.GRCh38.84.gtf.gz")
+    print("No Homo_sapiens.GRCh38.84.sqlite found. See https://blog.liang2.tw/posts/2016/05/biocondutor-ensembl-reference/ for installation")
+  }
+  txdb <- EnsDb(txdb_pth)
+  
+  # Get transcript ranges from Ensembl transcript database
+  transcripts_gr <- transcripts(txdb, filter=TxidFilter(transcripts))
+  
+  # Flag if start overlaps with any transcripts
+  #vcf_info$all_transcript_related_start <- as.numeric(overlapsAny(GRanges(seqnames=vcf_info$CHR, ranges=IRanges(start = vcf_info$START, width = 1)), transcripts_gr))
+  vcf_info$POS_in_transcr <- as.numeric(overlapsAny(GRanges(seqnames=vcf_info$CHR, ranges=IRanges(start = vcf_info$POS, width = 1)), transcripts_gr))
+  
+  # # Flag if end overlaps with any transcripts
+  # vcf_info$all_transcript_related_end <- sapply(1:dim(vcf_info)[1], function(x){
+  #   if(is.na(vcf_info$END[x])){
+  #     return(NA)
+  #   } 
+  #   else {
+  #     if(overlapsAny(GRanges(seqnames=vcf_info$CHR[x], ranges=IRanges(start = vcf_info$END[x], width = 1)), transcripts_gr)) {
+  #       return(1)
+  #     }
+  #     else {
+  #       return(0)
+  #     }
+  #   }
+  # })
+  
+
+  
+  # Initiate gene annotations
+  vcf_info$ann_start <- ""
+  #vcf_info$ann_end  <- ""
+  
+  # Find exact overlaps of start and end position with transcripts
+  #overlaps_start <- findOverlaps(GRanges(seqnames=vcf_info$CHR, ranges=IRanges(start = vcf_info$START, width = 100000)), transcripts_gr)  # testing
+  overlaps_start <- findOverlaps(GRanges(seqnames=vcf_info$CHR, ranges=IRanges(start = vcf_info$POS, width = 1)), transcripts_gr)
+  #overlaps_end <- findOverlaps(GRanges(seqnames=vcf_info[!is.na(vcf_info$all_transcript_related_end),]$CHR, ranges=IRanges(start = vcf_info[!is.na(vcf_info$all_transcript_related_end),]$END, width = 1)), transcripts_gr)
+  
+  # Add start position overlaps to table
+  if (dim(vcf_info[queryHits(overlaps_start),])[1] > 0) {
+    vcf_info[queryHits(overlaps_start),]$ann_start <- sapply(seq(length(overlaps_start)), function(x){
+      i <- queryHits(overlaps_start)[x]
+      j <- subjectHits(overlaps_start)[x]
+      vcf_info[i,]$ann_start <- transcripts_gr@elementMetadata$tx_name[j]
+    })
+  }
+  
+  # # Add end position overlaps to table --- FIXED
+  # if (dim(vcf_info[queryHits(overlaps_end),])[1] > 0) {
+  #   vcf_info[!is.na(vcf_info$all_transcript_related_end),][queryHits(overlaps_end),]$ann_end <- sapply(seq(length(overlaps_end)), function(x){
+  #     i <- queryHits(overlaps_end)[x]
+  #     j <- subjectHits(overlaps_end)[x]
+  #     vcf_info[!is.na(vcf_info$all_transcript_related_end),][i,]$ann_end <- transcripts_gr@elementMetadata$tx_name[j]
+  #   })
+  # }
+  
+  return(vcf_info)  
+}
+
+
+# Annotate all with Domain 1
+recurr_coding_dom1 <- annGenes_smallVar((all_coding %>% filter(VF_BIN != "<1%")), domain1_tr)
+names(recurr_coding_dom1)[63] <- "Domain 1"
+names(recurr_coding_dom1)[64] <- "Domain1_tr"
+  
+# Annotate all with Domain 2
+recurr_coding_dom2 <- annGenes_smallVar(recurr_coding_dom1, domain2_tr)
+recurr_coding_dom12 <- recurr_coding_dom2
+rm(recurr_coding_dom1, recurr_coding_dom2)
+names(recurr_coding_dom12)[65] <- "Domain 2"
+names(recurr_coding_dom12)[66] <- "Domain6_tr"
+
+# Create domain variable
+recurr_coding_dom12$Domain <- ""
+recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,]$Domain <- "Domain 1"
+recurr_coding_dom12[recurr_coding_dom12$`Domain 2` == 1,]$Domain <- "Domain 2"
+
+###### Analysis by domain (>1% VF only) ###### 
+
+# Summary by group and domain
+table(recurr_coding_dom12$Domain, recurr_coding_dom12$group)
+
+# Summary by group, domain and VF
+table(recurr_coding_dom12$Domain, recurr_coding_dom12$VF_BIN, recurr_coding_dom12$group)
+
+# Summary by type
+table(recurr_coding_dom12$Domain, recurr_coding_dom12$VAR_TYPE, recurr_coding_dom12$group)
+
+
+
+### Flag if variant has an assigned rs number in the VCF ID field (given by Strelka)
+# This means variant has been observed before in the germline (likely germline leaks or low quality variants)
+
+all_coding$rs_ID <- grepl("rs", all_coding$ID)
+recurr_coding_dom12$rs_ID <- grepl("rs", recurr_coding_dom12$ID)
+
+# Recurrent variants by "rs" ID
+table(recurr_coding_dom12$Domain, recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
+table(recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
+
+table(all_coding$group, all_coding$VF_BIN, all_coding$rs_ID)
+
+# Manually examine PCR free 5-10% variants that don't overlap simple repeats not have the rs ID
+recurr_coding_dom12 %>% filter(group == "FF TruSeq PCRfree", VF >= 0.05, simpleRepeat_overlap == 0, rs_ID == 0)  # 90
 
 
 
 
+###### Summary by tumour type ###### 
 
+# Add tumour types to FF list
+tumour_type_data <- read.csv("../cancer_SV_pipeline_dev/Data/cancer_samples.csv", header = T)
 
+# Check if all FF samples are there
+sum(FF_list$SAMPLE_WELL_ID %in% tumour_type_data$sampleId)  # 696 there
+sum(!FF_list$SAMPLE_WELL_ID %in% tumour_type_data$sampleId)  # 365 missing
 
+missing_tumour_type <- FF_list$SAMPLE_WELL_ID[!FF_list$SAMPLE_WELL_ID %in% tumour_type_data$sampleId]
 
+### Get tumour types from catalog
 
+getTumourType <- function(SAMPLE_WELL_ID, sessionID, studyID="1000000038"){
+  require(jsonlite)
+  require(dplyr)
+  #                  curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/samples/LP2000907-DNA_A01/annotationsets?sid=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MTMwOTg0NTYsImV4cCI6MTUxMzEwMDI1Nn0.JxLrfOwG7VzJQFfGkUGZ8d6DCrig94eGq5oHNl-RYms&study=1000000038&asMap=false"
+  command <- paste0('curl -X GET --header "Accept: application/json" --header "Authorization: Bearer " "https://opencgainternal.gel.zone/opencga/webservices/rest/v1/samples/', SAMPLE_WELL_ID, '/annotationsets?sid=', sessionID, '&study=', studyID, '&asMap=false"')
+  
+  info_json <- fromJSON(system(command, intern = T), flatten = T)
+  
+  if (info_json$response$numResults == 0) {
+    result <- data.frame(
+      WELL_ID = SAMPLE_WELL_ID,
+      TumourType = NA
+    )
+    return(result)  
+  }
+  
+  else if (length(info_json$response$result[[1]]) == 0 ){
+    result <- data.frame(
+      WELL_ID = SAMPLE_WELL_ID,
+      TumourType = NA
+    )
+    return(result)  
+  }
+  
+  else {
+    result <- data.frame(
+      WELL_ID = SAMPLE_WELL_ID,
+      TumourType = if(dim(info_json$response$result[[1]]$annotations[[1]][info_json$response$result[[1]]$annotations[[1]]$name == "diseaseType",])[1] == 0){
+        NA
+      }
+                  else{
+                    info_json$response$result[[1]]$annotations[[1]][info_json$response$result[[1]]$annotations[[1]]$name == "diseaseType",]$value
+                  }
+    )
+    return(result)  
+  }
+  
+}
+
+sessionID <- "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MTMxMDA0MDcsImV4cCI6MTUxMzEwMjIwN30.DZiaG_ye9BWkdvUgHGNsHTBrJ-5XzIjvYxvEkB87Vl0"
+
+# Test
+#getTumourType("LP2000907-DNA_A01", sessionID)  # Works!
+
+FF_tumour_types_catalog <- lapply(FF_list$SAMPLE_WELL_ID, getTumourType, sessionID)
+FF_tumour_types_catalog <- as.data.frame(rbind_list(FF_tumour_types_catalog))
+
+# Check results
+table(FF_tumour_types_catalog$TumourType, exclude = NULL)  # 634 NA
+
+# Test study *00036
+FF_tumour_types_catalog_s36 <- lapply(FF_list$SAMPLE_WELL_ID, getTumourType, sessionID, studyID="1000000036")
+FF_tumour_types_catalog_s36 <- as.data.frame(rbind_list(FF_tumour_types_catalog_s36))
+table(FF_tumour_types_catalog_s36$TumourType, exclude = NULL)  # 1061 NA
 
 
 
