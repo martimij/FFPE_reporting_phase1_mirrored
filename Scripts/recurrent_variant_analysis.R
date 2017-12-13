@@ -604,8 +604,19 @@ grid.newpage()
 
 
 
+### Recurrent FFPE variants NOT observed in FF cohorts
 
-
+# KEYs of FFPE recurrent variants (>5%)
+recurr_FFPE <- all_coding %>% filter(group == "FFPE", VF >= 0.05) %>% pull(KEY)  # 5447
+# NUmber of recurrent FFPE variants NOT in other cohorts  
+sum(!recurr_FFPE %in% all_coding[all_coding$group != "FFPE",]$KEY)  # 103
+recurr_FFPE_specific <- recurr_FFPE[!recurr_FFPE %in% all_coding[all_coding$group != "FFPE",]$KEY]
+# List FFPE-specific recurrent variants
+all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% dplyr::select(KEY, VF_BIN, rs_ID, simpleRepeat_overlap, VAR_TYPE, AF1000G)
+# Various summaries of FFPE-specific recurrent variants
+table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(rs_ID))
+table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(simpleRepeat_overlap))
+table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(VAR_TYPE))
 
 
 
