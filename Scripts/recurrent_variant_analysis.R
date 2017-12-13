@@ -899,6 +899,45 @@ sum(!FF_list$SAMPLE_WELL_ID %in% tumour_type_data$sampleId)  # 365 missing
 
 missing_tumour_type <- FF_list$SAMPLE_WELL_ID[!FF_list$SAMPLE_WELL_ID %in% tumour_type_data$sampleId]
 
+# Summary of FF tumour types (I have all FFPEs)
+table((tumour_type_data %>% filter(sampleId %in% FF_list$SAMPLE_WELL_ID) %>% pull(tumorType)), exclude = NULL)
+
+# Clean data (use defined dictionary for tumour types)
+# Dictionary (cancer data model 4.0: ADULT_GLIOMA, BLADDER, BREAST, CARCINOMA_OF_UNKNOWN_PRIMARY, CHILDHOOD, COLORECTAL, ENDOMETRIAL_CARCINOMA, HAEMONC, HEPATOPANCREATOBILIARY, LUNG, MALIGNANT_MELANOMA, NASOPHARYNGEAL, ORAL_OROPHARYNGEAL, OVARIAN, PROSTATE, RENAL, SARCOMA, SINONASAL, TESTICULAR_GERM_CELL_TUMOURS, UPPER_GASTROINTESTINAL, NON_HODGKINS_B_CELL_LYMPHOMA_LOW_MOD_GRADE, CLASSICAL_HODGKINS, NODULAR_LYMPHOCYTE_PREDOMINANT_HODGKINS, T_CELL_LYMPHOMA
+table(tumour_type_data$tumorType)
+
+tumour_type_data <- tumour_type_data %>% mutate(TumourType = case_when(
+  tumorType == "Adult Glioma" ~ "ADULT_GLIOMA",
+  tumorType == "adult_glioma" ~ "ADULT_GLIOMA",
+  tumorType == "bladder" ~ "BLADDER",
+  tumorType == "Bladder" ~ "BLADDER",
+  tumorType == "Breast" ~ "BREAST",
+  tumorType == "breast" ~ "BREAST",
+  tumorType == "colorectal" ~ "COLORECTAL",
+  tumorType == "Colorectal" ~ "COLORECTAL",
+  tumorType == "Endometrial Carcinoma" ~ "ENDOMETRIAL_CARCINOMA",
+  tumorType == "Hepatopancreatobiliary" ~ "HEPATOPANCREATOBILIARY",
+  tumorType == "lung" ~ "LUNG",
+  tumorType == "Lung" ~ "LUNG",
+  tumorType == "Malignant Melanoma" ~ "MALIGNANT_MELANOMA",
+  tumorType == "malignant_melanoma" ~ "MALIGNANT_MELANOMA",
+  tumorType == "ovarian" ~ "OVARIAN",
+  tumorType == "Ovarian" ~ "OVARIAN",
+  tumorType == "Prostate" ~ "PROSTATE",
+  tumorType == "renal" ~ "RENAL",
+  tumorType == "Renal" ~ "RENAL",
+  tumorType == "Sarcoma" ~ "SARCOMA",
+  tumorType == "Testicular Germ Cell Tumours" ~ "TESTICULAR_GERM_CELL_TUMOURS",
+  tumorType == "Upper Gastrointestinal" ~ "UPPER_GASTROINTESTINAL",
+  tumorType == "Unknown" ~ "UNKNOWN",
+  tumorType == "" ~ "UNKNOWN"
+  
+))
+
+# Check
+table(tumour_type_data$tumorType, tumour_type_data$TumourType)
+
+
 ### Get tumour types from catalog
 
 getTumourType <- function(SAMPLE_WELL_ID, sessionID, studyID="1000000038"){
@@ -951,10 +990,110 @@ FF_tumour_types_catalog <- as.data.frame(rbind_list(FF_tumour_types_catalog))
 # Check results
 table(FF_tumour_types_catalog$TumourType, exclude = NULL)  # 634 NA
 
+# How many of missing ones are in catalog
+sum(missing_tumour_type %in% FF_tumour_types_catalog[!is.na(FF_tumour_types_catalog$TumourType),]$WELL_ID)  # 161 additional ones found in catalog
+
+
 # Test study *00036
 FF_tumour_types_catalog_s36 <- lapply(FF_list$SAMPLE_WELL_ID, getTumourType, sessionID, studyID="1000000036")
 FF_tumour_types_catalog_s36 <- as.data.frame(rbind_list(FF_tumour_types_catalog_s36))
 table(FF_tumour_types_catalog_s36$TumourType, exclude = NULL)  # 1061 NA
+
+
+### Add tumour types to FF list
+
+# From Alona's table
+FF_list$TumourType <- tumour_type_data[match(FF_list$SAMPLE_WELL_ID, tumour_type_data$sampleId),]$TumourType
+table(FF_list$TumourType, exclude = NULL)  # 365 NAs
+# From catalog (study 38)
+sum(FF_list[is.na(FF_list$TumourType),]$SAMPLE_WELL_ID %in% FF_tumour_types_catalog[!is.na(FF_tumour_types_catalog$TumourType),]$WELL_ID) # 161 NAs can be added
+FF_list$TumourType_cat <- FF_tumour_types_catalog[match(FF_list$SAMPLE_WELL_ID, FF_tumour_types_catalog$WELL_ID),]$TumourType
+# Check
+table(FF_list$TumourType, FF_list$TumourType_cat, exclude = NULL)
+# Consolidate
+FF_list[is.na(FF_list$TumourType),]$TumourType <- FF_list[is.na(FF_list$TumourType),]$TumourType_cat
+table(FF_list$TumourType, FF_list$TumourType_cat, exclude = NULL)
+
+### PCT of tumour types per group
+
+# Clean FFPE tumour types
+table(FFPE_list$TUMOUR_TYPE, exclude = NULL)
+FFPE_list <- FFPE_list %>% mutate(TumourType = case_when(
+  TUMOUR_TYPE == "Adult Glioma" ~ "ADULT_GLIOMA",
+  TUMOUR_TYPE == "adult_glioma" ~ "ADULT_GLIOMA",
+  TUMOUR_TYPE == "bladder" ~ "BLADDER",
+  TUMOUR_TYPE == "Bladder" ~ "BLADDER",
+  TUMOUR_TYPE == "Breast" ~ "BREAST",
+  TUMOUR_TYPE == "breast" ~ "BREAST",
+  TUMOUR_TYPE == "colorectal" ~ "COLORECTAL",
+  TUMOUR_TYPE == "Colorectal" ~ "COLORECTAL",
+  TUMOUR_TYPE == "Endometrial Carcinoma" ~ "ENDOMETRIAL_CARCINOMA",
+  TUMOUR_TYPE == "Hepatopancreatobiliary" ~ "HEPATOPANCREATOBILIARY",
+  TUMOUR_TYPE == "lung" ~ "LUNG",
+  TUMOUR_TYPE == "Lung" ~ "LUNG",
+  TUMOUR_TYPE == "Malignant Melanoma" ~ "MALIGNANT_MELANOMA",
+  TUMOUR_TYPE == "malignant_melanoma" ~ "MALIGNANT_MELANOMA",
+  TUMOUR_TYPE == "ovarian" ~ "OVARIAN",
+  TUMOUR_TYPE == "Ovarian" ~ "OVARIAN",
+  TUMOUR_TYPE == "Prostate" ~ "PROSTATE",
+  TUMOUR_TYPE == "renal" ~ "RENAL",
+  TUMOUR_TYPE == "Renal" ~ "RENAL",
+  TUMOUR_TYPE == "Sarcoma" ~ "SARCOMA",
+  TUMOUR_TYPE == "Testicular Germ Cell Tumours" ~ "TESTICULAR_GERM_CELL_TUMOURS",
+  TUMOUR_TYPE == "Upper Gastrointestinal" ~ "UPPER_GASTROINTESTINAL",
+  TUMOUR_TYPE == "Unknown" ~ "UNKNOWN",
+  TUMOUR_TYPE == "" ~ "UNKNOWN"
+  
+))
+# Check
+table(FFPE_list$TumourType, FFPE_list$TUMOUR_TYPE, exclude = NULL)
+
+# Put data together
+all_cancer_cohorts_byTumourType <- rbind((FF_list %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)), (FFPE_list %>% mutate(SAMPLE_WELL_ID = Platekey, LIBRARY_TYPE = "FFPE") %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)))
+table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType, exclude = NULL)
+
+# 11 FFPE tumour types are unknown, checking in catalog
+sessionID <- "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtbWlqdXNrb3ZpYyIsImF1ZCI6Ik9wZW5DR0EgdXNlcnMiLCJpYXQiOjE1MTMxNzI2MDcsImV4cCI6MTUxMzE3NDQwN30.wYt6SErQcendjzPzun2ufWQ0zf-csXH7fQKFIEk3rqA"
+FFPE_list_TumourType_catalog <- lapply(FFPE_list[FFPE_list$TumourType == "UNKNOWN",]$Platekey, getTumourType, sessionID)
+FFPE_list_TumourType_catalog <- as.data.frame(rbind_all(FFPE_list_TumourType_catalog))
+table(FFPE_list_TumourType_catalog$TumourType, exclude = NULL)  # 4 found in catalog
+
+# Adding FFPE tumour types found in catalog
+FFPE_list[FFPE_list$TumourType == "UNKNOWN",]$TumourType <- FFPE_list_TumourType_catalog[match(FFPE_list[FFPE_list$TumourType == "UNKNOWN",]$Platekey, FFPE_list_TumourType_catalog$WELL_ID),]$TumourType
+table(FFPE_list$TumourType, exclude = NULL)
+
+# Redo full table
+all_cancer_cohorts_byTumourType <- rbind((FF_list %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)), (FFPE_list %>% mutate(SAMPLE_WELL_ID = Platekey, LIBRARY_TYPE = "FFPE") %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)))
+
+# Summarize
+as.data.frame(table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType, exclude = NULL))
+all_cancer_cohorts_byTumourType[is.na(all_cancer_cohorts_byTumourType$TumourType),]$TumourType <- "UNKNOWN"
+all_cancer_cohorts_byTumourType$LIBRARY_TYPE <- as.character(all_cancer_cohorts_byTumourType$LIBRARY_TYPE)
+TumourType_summary <- as.data.frame(table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType))
+TumourType_summary <- TumourType_summary %>% mutate(PCT_TOTAL = case_when(
+  Var1 == "FFPE" ~ Freq/232*100,
+  Var1 == "TruSeq Nano" ~ Freq/136*100,
+  Var1 == "TruSeq PCR-Free" ~ Freq/925*100
+))
+
+
+# Plot proportion of each tumour type in respective cohorts
+# Reorder groups
+TumourType_summary$Var1 <- factor(TumourType_summary$Var1, levels = c("TruSeq Nano", "TruSeq PCR-Free", "FFPE"))
+
+pdf(file = "./Plots/recurrent_variants/byTumourType.pdf", width = 10, height = 5)
+print(
+ggplot(TumourType_summary, aes(x=Var2, y=PCT_TOTAL, fill = Var1)) +
+  geom_col(position = 'dodge') +
+  tiltedX +
+  labs(x="", y="% total") +
+  blank
+)
+dev.off()
+
+
+
+
 
 
 
