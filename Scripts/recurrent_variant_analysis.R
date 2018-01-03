@@ -231,7 +231,10 @@ vcf_list_PCRfree <- paste0("/home/mmijuskovic/small_variant_freq/FF/GT_VCFs/", F
 write.table(vcf_list_PCRfree, file = "./Data/FF_PCRfree_mainProgram_2017.txt", col.names = F, quote = F, row.names = F)
 
 
+### Write FF PCR-free paths for SV tiering
 
+temp <- FF_list %>% filter(LIBRARY_TYPE == "TruSeq PCR-Free", !TumourType %in% "UNKNOWN", !is.na(TumourType)) %>% select(SAMPLE_WELL_ID, Path, TumourType)
+write.table(temp, file = "/Users/MartinaMijuskovic/cancer_SV_pipeline_dev/Data/FF_PCRfree_wClinical_forSVtiering.tsv", sep = "\t", row.names = F, col.names = T, quote = F)
 
 
 ########## Read merged VCFs (PASS, coding regions) ########## 
@@ -582,6 +585,10 @@ length(ffpe_keys)  # 1456
 length(nano_keys) # 1405
 sum(ffpe_keys %in% nano_keys) # 846 OVERLAP
 
+
+
+
+
 ### Recurrent variants observed in the germline
 
 # Allele frequency in 1000G > 1%
@@ -619,6 +626,40 @@ table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% 
 table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(VAR_TYPE))
 
 
+
+### How many recurrent FF nano and FFPE variants are not observed in FF PCR-free at all
+
+# KEYs of FF nano recurrent variants (>10%)
+recurr_FF_nano <- all_coding %>% filter(group == "FF TruSeq nano", VF >= 0.1) %>% pull(KEY)  # 1405
+
+# How many of recurrent FF nano are observed in FF PCR free
+sum(recurr_FF_nano %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1244 observed in PCR-free
+
+# Frequency at which these are present in different cohorts
+pdf(file = "./Plots/recurrent_variants/FF_nano_recurr_otherCohorts.pdf")
+print(
+ggplot((all_coding %>% filter(KEY %in% recurr_FF_nano)), aes(x=VF, fill = group)) +
+  geom_histogram(alpha = 0.5, position = "identity") +
+  blank +
+  bigger
+)
+dev.off()
+
+# KEYs of FFPE recurrent variants (>10%)
+recurr_FFPE_2 <- all_coding %>% filter(group == "FFPE", VF >= 0.1) %>% pull(KEY)  # 1456
+
+# How many of recurrent FF nano are observed in FF PCR free
+sum(recurr_FFPE_2 %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1316 observed in PCR-free
+
+# Frequency at which these are present in different cohorts
+pdf(file = "./Plots/recurrent_variants/FFPE_recurr_otherCohorts.pdf")
+print(
+ggplot((all_coding %>% filter(KEY %in% recurr_FFPE_2)), aes(x=VF, fill = group)) +
+  geom_histogram(alpha = 0.5, position = "identity") +
+  blank +
+  bigger
+)
+dev.off()
 
 
 ###### Comparison to FFPE trio analysis ###### 
