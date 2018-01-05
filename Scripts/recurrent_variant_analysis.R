@@ -9,6 +9,7 @@ library(ggplot2)
 library(VennDiagram)
 library(scales)
 library(ensembldb)
+library(data.table)
 
 today <- Sys.Date()
 
@@ -99,8 +100,24 @@ FF_list <- FF_list %>% filter(SAMPLE_TYPE == "FF", TUMOUR_CONTAMINATION == "Pass
 # Sanity check
 table(FF_list$PASS_TO_SEQ, exclude = NULL)
 table(FF_list$LIBRARY_TYPE, exclude = NULL)
+table(FF_list$LIBRARY_TYPE, FF_list$CENTER_CODE, exclude = NULL)
 table(FF_list$CENTER_CODE, exclude = NULL)
 sum(duplicated(FF_list$SAMPLE_WELL_ID))  # 0
+
+# Check QC metrics by GMC
+ggplot(FF_list, aes(x=CENTER_CODE, y=AT_DROP, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=GC_DROP, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=COVERAGE_HOMOGENEITY, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=AV_FRAGMENT_SIZE_BP, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=MAPPING_RATE_PER, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=CHIMERIC_PER, fill = CENTER_CODE)) + geom_boxplot()
+
+
+# By mutational burden
+ggplot(FF_list, aes(x=CENTER_CODE, y=SNV, fill = CENTER_CODE)) + geom_boxplot()
+ggplot(FF_list, aes(x=CENTER_CODE, y=INDEL, fill = CENTER_CODE)) + geom_boxplot()
+
+
 
 ### Add BAM paths
 
@@ -235,6 +252,55 @@ write.table(vcf_list_PCRfree, file = "./Data/FF_PCRfree_mainProgram_2017.txt", c
 
 temp <- FF_list %>% filter(LIBRARY_TYPE == "TruSeq PCR-Free", !TumourType %in% "UNKNOWN", !is.na(TumourType)) %>% select(SAMPLE_WELL_ID, Path, TumourType)
 write.table(temp, file = "/Users/MartinaMijuskovic/cancer_SV_pipeline_dev/Data/FF_PCRfree_wClinical_forSVtiering.tsv", sep = "\t", row.names = F, col.names = T, quote = F)
+
+
+
+##### Check for low quality samples ##### 
+
+# Jan 5 2018
+
+### FF LOW QUALITY
+
+# List of low quality FF samples (detected by PCA, reviewed or to-be-reviewed manually)
+low_qual <- read.csv("./Data/Low_qual_cancer_samples.csv")
+dim(FF_list[FF_list$SAMPLE_WELL_ID %in% low_qual$WELL.ID,])  # 51 of FF (13 of these are nano)
+# Add low qual flag
+FF_list$LOW_QUAL <- 0
+FF_list[FF_list$SAMPLE_WELL_ID %in% low_qual$WELL.ID,]$LOW_QUAL <- 1
+# Review (nothing major discovered, see notebook)
+FF_list %>% filter(LOW_QUAL ==1) %>% dplyr::select(SAMPLE_WELL_ID, CENTER_CODE, SAMPLE_TYPE, LIBRARY_TYPE, TUMOUR_PURITY, `BAM Date`, TumourType, AT_DROP, COVERAGE_HOMOGENEITY, CHIMERIC_PER, AV_FRAGMENT_SIZE_BP, MAPPING_RATE_PER, SNV, INDEL)
+# Check outcome (2 nano and 5 PCR-free samples need to be removed and VF re-calculated for production)
+low_qual %>% filter(WELL.ID %in% FF_list[FF_list$LOW_QUAL == 1,]$SAMPLE_WELL_ID) %>% dplyr::select(WELL.ID, CENTER, LIBRARY.PREP, PROBLEM.REPORTED.TO.GMC, COMMENTS, STATE)
+to_remove_nano <- low_qual %>% filter(WELL.ID %in% FF_list[FF_list$LOW_QUAL == 1,]$SAMPLE_WELL_ID, STATE == "FAILED", LIBRARY.PREP == "Nano") %>% pull(WELL.ID)  # 8 (6%)
+to_remove_PCRfree <- low_qual %>% filter(WELL.ID %in% FF_list[FF_list$LOW_QUAL == 1,]$SAMPLE_WELL_ID, STATE == "FAILED", LIBRARY.PREP == "PCR-Free") %>% pull(WELL.ID)  # 14 (1.5%)
+  
+# Flag FF samples to be removed
+FF_list$TO_REMOVE <- 0
+FF_list[FF_list$SAMPLE_WELL_ID %in% c(as.character(to_remove_nano), as.character(to_remove_PCRfree)),]$TO_REMOVE <- 1
+
+# Review samples to be removed
+low_qual %>% filter(WELL.ID %in% c(as.character(to_remove_nano), as.character(to_remove_PCRfree))) %>% dplyr::select(WELL.ID, CENTER, LIBRARY.PREP, AT.DROP, COVERAGE.HOMOGENEITY, CHIMERIC.PER, AV.FRAGMENT.SIZE.BP, DESEASE.TYPE, PROBLEM.REPORTED.TO.GMC,COMMENTS,STATE)
+
+# Write the clean list of FF samples
+write.table(FF_list, file = "./Data/Clean_FF_sample_list_Jan2018.csv", quote = F, row.names = F, col.names = T, sep = ",")
+
+
+
+### CONTAMINTATION
+
+# List of contaminated samples (ContEst, ConPair, VerifyBamID, Array concordance)
+contamin <- read.csv("./Data/Contamin_cancer_samples.csv")
+
+# Check for samples in contaminated list (NO ISSUE FOUND)
+dim(FF_list)  # 1061
+table(FF_list$LIBRARY_TYPE)
+FF_list[FF_list$SAMPLE_WELL_ID %in% contamin$WELL.ID,]  # none of FF
+dim(FFPE_list)  # 245
+FFPE_list_clean <- FFPE_list %>% filter(Exclusion_reason == "")
+dim(FFPE_list_clean)
+FFPE_list_clean[FFPE_list_clean$Platekey %in% contamin$WELL.ID,]
+FFPE_contamin <- FFPE_list_clean[FFPE_list_clean$Platekey %in% contamin$WELL.ID,]$Platekey
+contamin %>% filter(WELL.ID %in% FFPE_contamin)  # Low contamination of 3 FFPE samples, ok to keep
 
 
 ########## Read merged VCFs (PASS, coding regions) ########## 
