@@ -284,6 +284,10 @@ low_qual %>% filter(WELL.ID %in% c(as.character(to_remove_nano), as.character(to
 # Write the clean list of FF samples
 write.table(FF_list, file = "./Data/Clean_FF_sample_list_Jan2018.csv", quote = F, row.names = F, col.names = T, sep = ",")
 
+# Write the list of samples that need to be removed from FF nano and FF PCR-free
+write.table((FF_list %>% filter(LIBRARY_TYPE == "TruSeq Nano", TO_REMOVE == 1) %>% dplyr::select(SAMPLE_WELL_ID)), file = "./Data/FFnano_to_remove.txt", sep = "/t", row.names = F, col.names = F, quote = F)
+write.table((FF_list %>% filter(LIBRARY_TYPE == "TruSeq PCR-Free", TO_REMOVE == 1) %>% dplyr::select(SAMPLE_WELL_ID)), file = "./Data/FFPCRfree_to_remove.txt", sep = "/t", row.names = F, col.names = F, quote = F)
+
 
 
 ### CONTAMINTATION
