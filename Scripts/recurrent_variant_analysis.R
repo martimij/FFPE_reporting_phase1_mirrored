@@ -307,12 +307,15 @@ FFPE_contamin <- FFPE_list_clean[FFPE_list_clean$Platekey %in% contamin$WELL.ID,
 contamin %>% filter(WELL.ID %in% FFPE_contamin)  # Low contamination of 3 FFPE samples, ok to keep
 
 
-########## Read merged VCFs (PASS, coding regions) ########## 
+
+
+
+########## Read merged VCFs (PASS, coding regions, bad samples removed) ########## 
 
 ###### FFPE
 
 # Read merged VCF
-ffpe_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
+ffpe_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz") 
 ffpe_info <- as.data.frame(info(ffpe_vcf))
 
 # Add variant info
@@ -334,9 +337,11 @@ rm(ffpe_vcf)
 
 ###### FF
 
-# Read merged VCF (PCRfree)
-ff_PCRfree_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_PCRfree_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
-ff_nano_vcf  <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_nano_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")
+# Read merged VCFs
+# ff_PCRfree_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_PCRfree_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")  # old file containing bad samples
+# ff_nano_vcf  <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/FF_nano_mainProgram_2017.PASSonly.merged.AF.info_only.coding_only.sorted.vcf.gz")  # old file containing bad samples
+ff_PCRfree_vcf <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/fixed/FF_PCRfree_mainProgram_2017.clean.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf.gz")
+ff_nano_vcf  <- readVcf("/Users/MartinaMijuskovic/FFPE_reporting_phase1/Data/mergedVCFs/fixed/FF_nano_mainProgram_2017.clean.PASSonly.merged.AF.info_only.coding_only.duprem.sorted.vcf.gz")
 ff_PCRfree_info <-  as.data.frame(info(ff_PCRfree_vcf))
 ff_nano_info <-  as.data.frame(info(ff_nano_vcf))
 
@@ -355,10 +360,10 @@ ff_nano_info$REF <- as.data.frame(ref(ff_nano_vcf))$x
 ff_nano_info$ALT <- as.data.frame(alt(ff_nano_vcf))$value
 
 # Make key
-ff_PCRfree_info$KEY <- sapply(1:dim(ff_PCRfree_info)[x], function(x){
+ff_PCRfree_info$KEY <- sapply(1:dim(ff_PCRfree_info)[1], function(x){
   paste(ff_PCRfree_info$CHR[x], ff_PCRfree_info$POS[x], ff_PCRfree_info$REF[x], ff_PCRfree_info$ALT[x], sep = "_")
 })
-ff_nano_info$KEY <- sapply(1:dim(ff_nano_info)[x], function(x){
+ff_nano_info$KEY <- sapply(1:dim(ff_nano_info)[1], function(x){
   paste(ff_nano_info$CHR[x], ff_nano_info$POS[x], ff_nano_info$REF[x], ff_nano_info$ALT[x], sep = "_")
 })
 
@@ -370,31 +375,31 @@ rm(ff_PCRfree_vcf,ff_nano_vcf)
 ####### Sanity check
 
 # Number of variants corresponding to expected (compared to vt peek)? -ok
-dim(ffpe_info) # 586660
+dim(ffpe_info) # 370200 (dups removed)
 dim(ff_nano_info) # 279270
 dim(ff_PCRfree_info) # 1659842
 
 # Duplicate keys? (none expected)
-sum(duplicated(ffpe_info$KEY))  # 216460
-sum(duplicated(ffpe_info)) # 216460 (all duplicates also have full INFO duplicated)
+sum(duplicated(ffpe_info$KEY))  # 0 (removed below for FFPE, and taken care of when producing VCFs for FF)
+sum(duplicated(ffpe_info)) # 0
 length(unique(ffpe_info$KEY)) # 370200
-sum(duplicated(ff_nano_info$KEY))  # 101689
-sum(duplicated(ff_PCRfree_info$KEY))  # 636164
+sum(duplicated(ff_nano_info$KEY))  # 0
+sum(duplicated(ff_PCRfree_info$KEY))  # 0
 
 
 # Look at examples of duplicated variants (artefacts created during coding region subset; not present in the previous step)
-ffpe_dups <- ffpe_info$KEY[duplicated(ffpe_info$KEY)]
-head(ffpe_info %>% filter(KEY %in% ffpe_dups))
+#ffpe_dups <- ffpe_info$KEY[duplicated(ffpe_info$KEY)]
+#head(ffpe_info %>% filter(KEY %in% ffpe_dups))
 
 # Check if all duplicates are exact copies of the same row
-sum(duplicated(ffpe_info)) # should be 216460
+#sum(duplicated(ffpe_info)) # should be 216460
 
 # Removing duplicates
 ffpe_info <- ffpe_info[!duplicated(ffpe_info$KEY),]
-ff_nano_info <- ff_nano_info[!duplicated(ff_nano_info$KEY),]
-ff_PCRfree_info <- ff_PCRfree_info[!duplicated(ff_PCRfree_info$KEY),]
+# ff_nano_info <- ff_nano_info[!duplicated(ff_nano_info$KEY),]
+# ff_PCRfree_info <- ff_PCRfree_info[!duplicated(ff_PCRfree_info$KEY),]
 
-# Check
+# Check (all ok)
 dim(ffpe_info) # 370200
 dim(ff_nano_info) # 177581
 dim(ff_PCRfree_info) # 1023678
@@ -404,10 +409,14 @@ dim(ff_PCRfree_info) # 1023678
 
 ########## Variant frequency plots and summary ########## 
 
-# Calculate VF (variant frequency) as AC/total samples (FFPE: 232, FF-nano: 136, FF-PCRfree: 925)
+# Calculate VF (variant frequency) as AC/total samples (FFPE: 232, FF-nano: 136, FF-PCRfree: 925) # for old files
 ffpe_info$VF <- as.numeric(ffpe_info$AC) / 232
-ff_nano_info$VF <- as.numeric(ff_nano_info$AC) / 136
-ff_PCRfree_info$VF <- as.numeric(ff_PCRfree_info$AC) / 925
+# ff_nano_info$VF <- as.numeric(ff_nano_info$A) / 136  # for old file
+# ff_PCRfree_info$VF <- as.numeric(ff_PCRfree_info$AC) / 925  # for old file
+
+# Calculate VF (variant frequency) as AF (allele frequency) * 2 (2 alleles in each sample assumed; however we need variant observation frequency in the cohort)
+ff_nano_info$VF <- as.numeric(ff_nano_info$AF)*2
+ff_PCRfree_info$VF <- as.numeric(ff_PCRfree_info$AF)*2
 
 # Plot VF (FFPE only)
 ggplot(ffpe_info, aes(x=VF)) +
@@ -430,7 +439,8 @@ all_coding <- rbind(ffpe_info, ff_nano_info, ff_PCRfree_info)
 #   #scale_x_continuous(limits = c(0,1)) +
 #   blank
 
-pdf(file = "./Plots/recurrent_variants/somatic_var_freq.pdf", width = 10, height = 5)
+#pdf(file = "./Plots/recurrent_variants/somatic_var_freq.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/somatic_var_freq.pdf", width = 10, height = 5)
 print(
 ggplot(all_coding, aes(x=VF, col = group)) +
   geom_freqpoly(bins = 50) +
@@ -453,10 +463,7 @@ dev.off()
 #   else { "INDEL" }
 # })
 
-all_coding_recurr$VAR_TYPE <- sapply(1:dim(all_coding_recurr)[1], function(x){
-  if(nchar(all_coding_recurr$REF)[x]==1 & nchar(all_coding_recurr$ALT)[x]==1){ "SNV" }
-  else { "INDEL" }
-})
+
 
 all_coding$REF_length <- nchar(all_coding$REF)
 all_coding$ALT_length <- nchar(all_coding$ALT)
@@ -467,9 +474,6 @@ all_coding[all_coding$VAR_TYPE != "INDEL",]$VAR_TYPE <- "SNV"
 
 
 
-# Summary of recurrent by variant type and group
-table(all_coding_recurr$group, all_coding_recurr$VAR_TYPE)
-table(all_coding$group, all_coding$VAR_TYPE)
 
 # Plot frequency distribution by variant type
 pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFPE.pdf", width = 10, height = 5)
@@ -485,7 +489,8 @@ print(
 )
 dev.off()
 
-pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFpcrfree.pdf", width = 10, height = 5)
+#pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFpcrfree.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/somatic_var_freq_varType_FFpcrfree.pdf", width = 10, height = 5)
 print(
   ggplot((all_coding %>% filter(group == "FF TruSeq PCRfree")), aes(x=VF, col = VAR_TYPE)) +
     geom_freqpoly(bins = 50) +
@@ -498,7 +503,8 @@ print(
 )
 dev.off()
 
-pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFnano.pdf", width = 10, height = 5)
+#pdf(file = "./Plots/recurrent_variants/somatic_var_freq_varType_FFnano.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/somatic_var_freq_varType_FFnano.pdf", width = 10, height = 5)
 print(
   ggplot((all_coding %>% filter(group == "FF TruSeq nano")), aes(x=VF, col = VAR_TYPE)) +
     geom_freqpoly(bins = 50) +
@@ -534,15 +540,18 @@ all_coding$VF_BIN <- sapply(1:dim(all_coding)[1], function(x){
   else {"<1%"}
 })
 table(all_coding$VF_BIN, all_coding$group)
-table(all_coding$VF_BIN, all_coding$group, all_coding$simpleRepeat_overlap)
 
 # Flag private variants
 all_coding <- all_coding %>% mutate(private = case_when(group == "FFPE" & VF < 0.008 ~ 1,
                                                         group == "FF TruSeq nano" & VF < 0.01 ~ 1,
                                                         group == "FF TruSeq PCRfree" & VF < 0.002 ~ 1,
                                                         TRUE ~ 0))
+# Summary for Cnfl tables
 table(all_coding$group, all_coding$private)
 table(all_coding$private, all_coding$VF_BIN, all_coding$group)
+table(all_coding[all_coding$VAR_TYPE == "SNV",]$private, all_coding[all_coding$VAR_TYPE == "SNV",]$VF_BIN, all_coding[all_coding$VAR_TYPE == "SNV",]$group)
+table(all_coding[all_coding$VAR_TYPE == "INDEL",]$private, all_coding[all_coding$VAR_TYPE == "INDEL",]$VF_BIN, all_coding[all_coding$VAR_TYPE == "INDEL",]$group)
+
 
 # Make new variable for plotting
 all_coding <- all_coding %>% mutate(`Variant Frequency` = case_when(private == 0 ~ VF_BIN, TRUE ~ "private"))
@@ -558,7 +567,8 @@ all_coding_summary <- as.data.frame(table(all_coding$group, all_coding$`Variant 
 # levels(all_coding_summary$Var2) <- c("<1%" ,    ">10%" ,   "1-5%" ,   "5-10%"  , "private") 
 all_coding_summary$Var2 <- factor(all_coding_summary$Var2, levels = rev(c("private", "<1%", "1-5%", "5-10%", ">10%")))
 
-pdf(file = paste0("./Plots/recurrent_variants/withPrivate_byGroup.pdf"))
+#pdf(file = paste0("./Plots/recurrent_variants/withPrivate_byGroup.pdf"))
+pdf(file = paste0("./Plots/recurrent_variants/fixed/withPrivate_byGroup.pdf"))
 print(
 ggplot(all_coding_summary, aes(x=Var1, y=Freq, fill = Var2))  +
   geom_bar(position = "fill",stat = "identity") + 
@@ -575,7 +585,8 @@ all_coding_summary_nonPrivate <- as.data.frame(table(all_coding[all_coding$priva
 # Reorder the levels for plotting
 all_coding_summary_nonPrivate$Var2 <- factor(all_coding_summary_nonPrivate$Var2, levels = rev(c("<1%", "1-5%", "5-10%", ">10%")))
 
-pdf(file = paste0("./Plots/recurrent_variants/nonPrivate_byGroup.pdf"))
+#pdf(file = paste0("./Plots/recurrent_variants/nonPrivate_byGroup.pdf"))
+pdf(file = paste0("./Plots/recurrent_variants/fixed/nonPrivate_byGroup.pdf"))
 print(
 ggplot(all_coding_summary_nonPrivate, aes(x=Var1, y=Freq, fill = Var2))  +
   geom_bar(position = "fill",stat = "identity") + 
@@ -593,7 +604,8 @@ dev.off()
 all_coding_summary2 <- as.data.frame(table(all_coding$group, all_coding$VF_BIN))
 all_coding_summary2$Var2 <- factor(all_coding_summary2$Var2, levels = rev(c("<1%", "1-5%", "5-10%", ">10%")))
 
-pdf(file = paste0("./Plots/recurrent_variants/VF_bins_byGroup.pdf"))
+#pdf(file = paste0("./Plots/recurrent_variants/VF_bins_byGroup.pdf"))
+pdf(file = paste0("./Plots/recurrent_variants/fixed/VF_bins_byGroup.pdf"))
 print(
   ggplot(all_coding_summary2, aes(x=Var1, y=Freq, fill = Var2))  +
     geom_bar(position = "fill",stat = "identity") + 
@@ -630,12 +642,22 @@ dim(all_coding)
 all_coding_recurr <- all_coding %>% filter(VF >= 0.1)
 dim(all_coding_recurr)
 
+# Add variant type
+all_coding_recurr$VAR_TYPE <- sapply(1:dim(all_coding_recurr)[1], function(x){
+  if(nchar(all_coding_recurr$REF)[x]==1 & nchar(all_coding_recurr$ALT)[x]==1){ "SNV" }
+  else { "INDEL" }
+})
+
+# Summary of recurrent by variant type and group
+table(all_coding_recurr$group, all_coding_recurr$VAR_TYPE)
+table(all_coding$group, all_coding$VAR_TYPE)
+
 # Recurrent variants by group
 table(all_coding_recurr$group)
 
 ##### Overlap of recurrent variants
 pcrfree_keys <- all_coding_recurr %>% filter(group == "FF TruSeq PCRfree") %>% pull(KEY)  # 3
-nano_keys <- all_coding_recurr %>% filter(group == "FF TruSeq nano") %>% pull(KEY)  # 1405
+nano_keys <- all_coding_recurr %>% filter(group == "FF TruSeq nano") %>% pull(KEY)  # 1437
 ffpe_keys <- all_coding_recurr %>% filter(group == "FFPE") %>% pull(KEY)  # 1456
 
 
@@ -651,9 +673,7 @@ all_coding_recurr %>% filter(group == "FF TruSeq PCRfree", KEY %in% nano_keys) %
 
 ### Overlap of FFPE and FF nano recurrent variants
 
-length(ffpe_keys)  # 1456
-length(nano_keys) # 1405
-sum(ffpe_keys %in% nano_keys) # 846 OVERLAP
+sum(ffpe_keys %in% nano_keys) # 853 OVERLAP
 
 
 
@@ -791,6 +811,8 @@ dev.off()
 
 ###### Overlap with simple repeats ###### 
 
+
+
 ### Create bed files (0-based pos) with all variants to calculate TRF simple repeat overlap
 
 # Correct (direct) TRF overlap (for deletions, use bed file with deletion width)
@@ -819,6 +841,8 @@ table(all_coding$simpleRepeat_overlap, exclude = NULL)
 
 
 ### Proportion of recurrent variants overlapping simple repeats
+
+table(all_coding$VF_BIN, all_coding$group, all_coding$simpleRepeat_overlap)
 
 table(all_coding$VF > 0.1, all_coding$group, all_coding$simpleRepeat_overlap, exclude = NULL)  # too few >10% variants in FF PCR-free for comparison
 
@@ -1185,7 +1209,15 @@ FFPE_list[FFPE_list$TumourType == "UNKNOWN",]$TumourType <- FFPE_list_TumourType
 table(FFPE_list$TumourType, exclude = NULL)
 
 # Redo full table
-all_cancer_cohorts_byTumourType <- rbind((FF_list %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)), (FFPE_list %>% mutate(SAMPLE_WELL_ID = Platekey, LIBRARY_TYPE = "FFPE") %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)))
+#all_cancer_cohorts_byTumourType <- rbind((FF_list %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)), (FFPE_list %>% mutate(SAMPLE_WELL_ID = Platekey, LIBRARY_TYPE = "FFPE") %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)))
+
+# Redo after filtering out bad samples (Jan 2018)
+all_cancer_cohorts_byTumourType <- rbind((FF_list %>% filter(TO_REMOVE == 0) %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)), (FFPE_list_clean %>% mutate(SAMPLE_WELL_ID = Platekey, LIBRARY_TYPE = "FFPE") %>% dplyr::select(SAMPLE_WELL_ID, LIBRARY_TYPE, TumourType)))
+
+# Sanity check
+dim(all_cancer_cohorts_byTumourType)  # correct
+table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, exclude = NULL)
+table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType, exclude = NULL)
 
 # Summarize
 as.data.frame(table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType, exclude = NULL))
@@ -1194,8 +1226,8 @@ all_cancer_cohorts_byTumourType$LIBRARY_TYPE <- as.character(all_cancer_cohorts_
 TumourType_summary <- as.data.frame(table(all_cancer_cohorts_byTumourType$LIBRARY_TYPE, all_cancer_cohorts_byTumourType$TumourType))
 TumourType_summary <- TumourType_summary %>% mutate(PCT_TOTAL = case_when(
   Var1 == "FFPE" ~ Freq/232*100,
-  Var1 == "TruSeq Nano" ~ Freq/136*100,
-  Var1 == "TruSeq PCR-Free" ~ Freq/925*100
+  Var1 == "TruSeq Nano" ~ Freq/128*100,
+  Var1 == "TruSeq PCR-Free" ~ Freq/910*100
 ))
 
 
@@ -1203,7 +1235,8 @@ TumourType_summary <- TumourType_summary %>% mutate(PCT_TOTAL = case_when(
 # Reorder groups
 TumourType_summary$Var1 <- factor(TumourType_summary$Var1, levels = c("TruSeq Nano", "TruSeq PCR-Free", "FFPE"))
 
-pdf(file = "./Plots/recurrent_variants/byTumourType.pdf", width = 10, height = 5)
+#pdf(file = "./Plots/recurrent_variants/fixedbyTumourType.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/fixedbyTumourType.pdf", width = 10, height = 5)
 print(
 ggplot(TumourType_summary, aes(x=Var2, y=PCT_TOTAL, fill = Var1)) +
   geom_col(position = 'dodge') +
