@@ -10,6 +10,7 @@ library(VennDiagram)
 library(scales)
 library(ensembldb)
 library(data.table)
+library(reshape)
 
 today <- Sys.Date()
 
@@ -687,12 +688,12 @@ table(all_coding_recurr[all_coding_recurr$AF1000G > 0.01,]$group, exclude = NULL
 nano_keys_leaks <- all_coding_recurr %>% filter(group == "FF TruSeq nano", AF1000G > 0.01) %>% pull(KEY) 
 ffpe_keys_leaks <- all_coding_recurr %>% filter(group == "FFPE", AF1000G > 0.01) %>% pull(KEY)
 
-sum(nano_keys_leaks %in% ffpe_keys_leaks )  # 115 overlap
+sum(nano_keys_leaks %in% ffpe_keys_leaks )  # 117 overlap
 
 
 ### Overlap between recurrent variants in FFPE and FF nano
 grid.newpage()
-pdf(file = "./Plots/recurrent_variants/NanoVsFFPE_venn.pdf")
+pdf(file = "./Plots/recurrent_variants/fixed/NanoVsFFPE_venn.pdf")
 print(
   draw.pairwise.venn(length(nano_keys), length(ffpe_keys), sum(ffpe_keys %in% nano_keys), c("FF nano", "FFPE"), fill = c("hotpink", "turquoise3"), lwd = 1, cat.fontfamily = rep("ArialMT", 2), fontfamily = rep("ArialMT", 3), alpha = rep(0.4, 2), cex = rep(1.5, 3), cat.cex = rep(1.2, 2))
 )
@@ -706,11 +707,27 @@ grid.newpage()
 # KEYs of FFPE recurrent variants (>5%)
 recurr_FFPE <- all_coding %>% filter(group == "FFPE", VF >= 0.05) %>% pull(KEY)  # 5447
 # NUmber of recurrent FFPE variants NOT in other cohorts  
-sum(!recurr_FFPE %in% all_coding[all_coding$group != "FFPE",]$KEY)  # 103
+sum(!recurr_FFPE %in% all_coding[all_coding$group != "FFPE",]$KEY)  # 482 (was 103 before removing bad FF samples extracted with formalin protocol!)
 recurr_FFPE_specific <- recurr_FFPE[!recurr_FFPE %in% all_coding[all_coding$group != "FFPE",]$KEY]
+table(all_coding[all_coding$KEY %in% recurr_FFPE_specific,]$VAR_TYPE)  # 11 indels, 471 SNVs
+table((all_coding %>% filter(KEY %in% recurr_FFPE, group == "FFPE") %>% pull(VAR_TYPE)))  # 2724 indels, 2723 SNVs
+# Total recurrent FFPE observed in 1000G
+table(all_coding[all_coding$KEY %in% recurr_FFPE,]$VAR_TYPE, is.na(all_coding[all_coding$KEY %in% recurr_FFPE,]$AF1000G))
+table(all_coding[all_coding$KEY %in% recurr_FFPE_specific,]$VAR_TYPE, is.na(all_coding[all_coding$KEY %in% recurr_FFPE_specific,]$AF1000G))
+
+# # Check the number of FFPE-specific if recurrent are defined at 1%
+# recurr_FFPE_2 <- all_coding %>% filter(group == "FFPE", VF >= 0.01) %>% pull(KEY)  # 40309 (>10% of total variants)
+# dim(all_coding %>% filter(group == "FFPE")) # 370200
+# sum(!recurr_FFPE_2 %in% all_coding[all_coding$group != "FFPE",]$KEY)  # 6362
+
 # List FFPE-specific recurrent variants
-all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% dplyr::select(KEY, VF_BIN, rs_ID, simpleRepeat_overlap, VAR_TYPE, AF1000G)
-# Various summaries of FFPE-specific recurrent variants
+FFPE_specific <- all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) 
+dim(FFPE_specific)  # 482
+#FFPE_specific %>% dplyr::select(KEY, VF_BIN, rs_ID, simpleRepeat_overlap, VAR_TYPE, AF1000G)
+FFPE_specific %>% dplyr::select(KEY, REF, ALT, VF_BIN, VAR_TYPE, AF1000G)
+FFPE_specific %>% filter(!is.na(AF1000G)) %>% dplyr::select(KEY, ID, REF, ALT, VF_BIN, VAR_TYPE, AF1000G)
+
+# Various summaries of FFPE-specific recurrent variants (needs calc of simple repeat overlap and rsID)
 table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(rs_ID))
 table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(simpleRepeat_overlap))
 table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% pull(VAR_TYPE))
@@ -720,13 +737,13 @@ table(all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_specific) %>% 
 ### How many recurrent FF nano and FFPE variants are not observed in FF PCR-free at all
 
 # KEYs of FF nano recurrent variants (>10%)
-recurr_FF_nano <- all_coding %>% filter(group == "FF TruSeq nano", VF >= 0.1) %>% pull(KEY)  # 1405
+recurr_FF_nano <- all_coding %>% filter(group == "FF TruSeq nano", VF >= 0.1) %>% pull(KEY)  # 1437
 
 # How many of recurrent FF nano are observed in FF PCR free
-sum(recurr_FF_nano %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1244 observed in PCR-free
+sum(recurr_FF_nano %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1266 observed in PCR-free
 
 # Frequency at which these are present in different cohorts
-pdf(file = "./Plots/recurrent_variants/FF_nano_recurr_otherCohorts.pdf")
+pdf(file = "./Plots/recurrent_variants/fixed/FF_nano_recurr_otherCohorts.pdf")
 print(
 ggplot((all_coding %>% filter(KEY %in% recurr_FF_nano)), aes(x=VF, fill = group)) +
   geom_histogram(alpha = 0.5, position = "identity") +
@@ -739,10 +756,10 @@ dev.off()
 recurr_FFPE_2 <- all_coding %>% filter(group == "FFPE", VF >= 0.1) %>% pull(KEY)  # 1456
 
 # How many of recurrent FF nano are observed in FF PCR free
-sum(recurr_FFPE_2 %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1316 observed in PCR-free
+sum(recurr_FFPE_2 %in% all_coding[all_coding$group == "FF TruSeq PCRfree",]$KEY)  # 1295 observed in PCR-free
 
 # Frequency at which these are present in different cohorts
-pdf(file = "./Plots/recurrent_variants/FFPE_recurr_otherCohorts.pdf")
+pdf(file = "./Plots/recurrent_variants/fixed/FFPE_recurr_otherCohorts.pdf")
 print(
 ggplot((all_coding %>% filter(KEY %in% recurr_FFPE_2)), aes(x=VF, fill = group)) +
   geom_histogram(alpha = 0.5, position = "identity") +
@@ -750,6 +767,81 @@ ggplot((all_coding %>% filter(KEY %in% recurr_FFPE_2)), aes(x=VF, fill = group))
   bigger
 )
 dev.off()
+
+
+# Split by variant type (FF nano)
+table((all_coding %>% filter(group == "FF TruSeq nano", KEY %in% recurr_FF_nano) %>% pull(VAR_TYPE)))
+table((all_coding %>% filter(group == "FF TruSeq PCRfree", KEY %in% recurr_FF_nano) %>% pull(VAR_TYPE)))
+# Split by variant type (FFPE)
+table((all_coding %>% filter(group == "FFPE", KEY %in% recurr_FFPE_2) %>% pull(VAR_TYPE)))
+table((all_coding %>% filter(group == "FF TruSeq PCRfree", KEY %in% recurr_FFPE_2) %>% pull(VAR_TYPE)))
+
+
+# Scatter plots of recurrent nano variants (>10%)
+scatter_table_nano <- melt((all_coding %>% filter(KEY %in% recurr_FF_nano) %>% dplyr::select(KEY, VAR_TYPE, VF, group)), id=c("KEY", "group", "VAR_TYPE"))
+scatter_table_nano <- cast(scatter_table_nano, KEY + VAR_TYPE ~ group)
+dim(scatter_table_nano)
+
+pdf(file = paste0("./Plots/recurrent_variants/fixed/recurrInNano_FFs_scatter.pdf"))
+print(ggplot(scatter_table_nano, aes(x=`FF TruSeq nano`, y=`FF TruSeq PCRfree`, col = VAR_TYPE)) +
+        scale_color_manual(values = c("yellow3", "aquamarine3")) +
+        geom_point(size = 1, alpha = 0.7) +
+        labs(x="VF FF nano", y="VF FF PCRfree") +
+        bigger +
+        scale_x_continuous(limits = c(0, 1)) +
+        scale_y_continuous(limits = c(0, 1)) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2) +
+        #geom_smooth(method = "lm", se = F, linetype = 1, size = 0.5) +
+        blank)
+dev.off()
+
+pdf(file = paste0("./Plots/recurrent_variants/fixed/recurrInNano_nanoFFPE_scatter.pdf"))
+print(ggplot(scatter_table_nano, aes(x=`FF TruSeq nano`, y=FFPE, col = VAR_TYPE)) +
+        scale_color_manual(values = c("yellow3", "aquamarine3")) +
+        geom_point(size = 1, alpha = 0.7) +
+        labs(x="VF FF nano", y="VF FFPE") +
+        bigger +
+        scale_x_continuous(limits = c(0, 1)) +
+        scale_y_continuous(limits = c(0, 1)) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2) +
+        #geom_smooth(method = "lm", se = F, linetype = 1, size = 0.5) +
+        blank)
+dev.off()
+
+
+# Scatter plots of recurrent FFPE variants (>10%)
+
+scatter_table_ffpe <- melt((all_coding %>% filter(KEY %in% recurr_FFPE_2) %>% dplyr::select(KEY, VAR_TYPE, VF, group)), id=c("KEY", "group", "VAR_TYPE"))
+scatter_table_ffpe <- cast(scatter_table_ffpe, KEY + VAR_TYPE ~ group)
+dim(scatter_table_ffpe)  # 1456
+
+pdf(file = paste0("./Plots/recurrent_variants/fixed/recurrInFFPE_FFpcrfree_scatter.pdf"))
+print(ggplot(scatter_table_ffpe, aes(x=FFPE, y=`FF TruSeq PCRfree`, col = VAR_TYPE)) +
+        scale_color_manual(values = c("yellow3", "aquamarine3")) +
+        geom_point(size = 1, alpha = 0.7) +
+        labs(x="VF FFPE", y="VF FF PCRfree") +
+        bigger +
+        scale_x_continuous(limits = c(0, 1)) +
+        scale_y_continuous(limits = c(0, 1)) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2) +
+        #geom_smooth(method = "lm", se = F, linetype = 1, size = 0.5) +
+        blank)
+dev.off()
+
+pdf(file = paste0("./Plots/recurrent_variants/fixed/recurrInFFPE_FFnano_scatter.pdf"))
+print(ggplot(scatter_table_ffpe, aes(x=FFPE, y=`FF TruSeq nano`, col = VAR_TYPE)) +
+        scale_color_manual(values = c("yellow3", "aquamarine3")) +
+        geom_point(size = 1, alpha = 0.7) +
+        labs(x="VF FFPE", y="VF FF nano") +
+        bigger +
+        scale_x_continuous(limits = c(0, 1)) +
+        scale_y_continuous(limits = c(0, 1)) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2) +
+        #geom_smooth(method = "lm", se = F, linetype = 1, size = 0.5) +
+        blank)
+dev.off()
+
+
 
 
 ###### Comparison to FFPE trio analysis ###### 
@@ -840,14 +932,6 @@ all_coding[(all_coding$KEY %in% simpleRepeat_keys),]$simpleRepeat_overlap <- 1
 table(all_coding$simpleRepeat_overlap, exclude = NULL)
 
 
-### Proportion of recurrent variants overlapping simple repeats
-
-table(all_coding$VF_BIN, all_coding$group, all_coding$simpleRepeat_overlap)
-
-table(all_coding$VF > 0.1, all_coding$group, all_coding$simpleRepeat_overlap, exclude = NULL)  # too few >10% variants in FF PCR-free for comparison
-
-
-
 # Correct factor order
 table(all_coding$VF_BIN)
 all_coding$VF_BIN <- factor(all_coding$VF_BIN, levels = c(">10%", "5-10%", "1-5%", "<1%"))
@@ -857,18 +941,25 @@ table(all_coding$group)
 all_coding$group <- factor(all_coding$group, levels = c("FF TruSeq PCRfree", "FF TruSeq nano", "FFPE"))
 table(all_coding$group)
 
+
+### Proportion of recurrent variants overlapping simple repeats
+
+table(all_coding$VF_BIN, all_coding$group, all_coding$simpleRepeat_overlap)
+table(all_coding$VF > 0.05, all_coding$group, all_coding$simpleRepeat_overlap, exclude = NULL)  
+
+
 # Sort data
 all_coding <- with(all_coding, all_coding[order(VF_BIN, simpleRepeat_overlap, group),])
 
 # Simple repeat overlap summary
 table(all_coding$VF_BIN, all_coding$simpleRepeat_overlap, all_coding$group)
-#all_coding %>% group_by(group, VF_BIN, simpleRepeat_overlap) %>% summarise(n())
-table(all_coding$VF > 0.01, all_coding$simpleRepeat_overlap, all_coding$group)
+table(all_coding$VF > 0.05, all_coding$simpleRepeat_overlap, all_coding$group)
+table(all_coding$private == 1, all_coding$simpleRepeat_overlap, all_coding$group)
 
 
 ### Barplot colored by simple repeat overlap by VF bins, by group
 
-pdf(file = "./Plots/recurrent_variants/simpleRep_overlap_bins.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/simpleRep_overlap_bins.pdf", width = 10, height = 5)
 print(
   ggplot(all_coding, aes(x=group, fill = factor(simpleRepeat_overlap))) +
     #geom_bar(stat = "identity") +
@@ -882,7 +973,7 @@ print(
 dev.off()
 
 # Barplot (excluding <1% variants)
-pdf(file = "./Plots/recurrent_variants/simpleRep_overlap_bins_recurrOnly.pdf", width = 10, height = 5)
+pdf(file = "./Plots/recurrent_variants/fixed/simpleRep_overlap_bins_recurrOnly.pdf", width = 10, height = 5)
 print(
   ggplot((all_coding %>% filter(VF_BIN != "<1%")), aes(x=group, fill = factor(simpleRepeat_overlap))) +
     #geom_bar(stat = "identity") +
@@ -890,8 +981,8 @@ print(
     facet_grid(~VF_BIN) +
     #blank +
     tiltedX +
-    labs(fill="", x="") +
-    bigger
+    labs(fill="", x="")
+    #bigger
 )  
 dev.off()
 
@@ -992,11 +1083,10 @@ names(recurr_coding_dom1)[63] <- "Domain 1"
 names(recurr_coding_dom1)[64] <- "Domain1_tr"
   
 # Annotate all with Domain 2
-recurr_coding_dom2 <- annGenes_smallVar(recurr_coding_dom1, domain2_tr)
-recurr_coding_dom12 <- recurr_coding_dom2
-rm(recurr_coding_dom1, recurr_coding_dom2)
+recurr_coding_dom12 <- annGenes_smallVar(recurr_coding_dom1, domain2_tr)
+#rm(recurr_coding_dom1, recurr_coding_dom2)
 names(recurr_coding_dom12)[65] <- "Domain 2"
-names(recurr_coding_dom12)[66] <- "Domain6_tr"
+names(recurr_coding_dom12)[66] <- "Domain2_tr"
 
 # Create domain variable
 recurr_coding_dom12$Domain <- ""
@@ -1014,6 +1104,13 @@ table(recurr_coding_dom12$Domain, recurr_coding_dom12$VF_BIN, recurr_coding_dom1
 # Summary by type
 table(recurr_coding_dom12$Domain, recurr_coding_dom12$VAR_TYPE, recurr_coding_dom12$group)
 
+# Review Domain1 variants
+recurr_coding_dom12 %>% filter(Domain == "Domain 1") %>% dplyr::select(KEY, VF, Domain1_tr, group) %>% arrange(desc(VF))
+#all_GO_tr %>% filter(transcript_ID == "ENST00000222254")
+
+# Recurrent (>1%) Domain 1 PCR-free (to be reviewed manually if NOT H-flagged or direct SR overlap or germline leaks)
+recurr_coding_dom12 %>% filter(Domain == "Domain 1", group == "FF TruSeq PCRfree") %>% dplyr::select(KEY, VF, Domain1_tr, group) %>% arrange(desc(VF))
+recurr_coding_dom12 %>% filter(Domain == "Domain 1", group == "FF TruSeq PCRfree", simpleRepeat_overlap == 0, is.na(AF1000G)) %>% dplyr::select(KEY, VF, Domain1_tr, group, simpleRepeat_overlap, AF1000G) %>% arrange(desc(VF))
 
 
 ### Flag if variant has an assigned rs number in the VCF ID field (given by Strelka)
@@ -1025,11 +1122,7 @@ recurr_coding_dom12$rs_ID <- grepl("rs", recurr_coding_dom12$ID)
 # Recurrent variants by "rs" ID
 table(recurr_coding_dom12$Domain, recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
 table(recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
-
 table(all_coding$group, all_coding$VF_BIN, all_coding$rs_ID)
-
-# Manually examine PCR free 5-10% variants that don't overlap simple repeats not have the rs ID
-recurr_coding_dom12 %>% filter(group == "FF TruSeq PCRfree", VF >= 0.05, simpleRepeat_overlap == 0, rs_ID == 0)  # 90
 
 
 
