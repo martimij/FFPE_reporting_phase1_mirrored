@@ -1088,12 +1088,15 @@ recurr_coding_dom12 <- annGenes_smallVar(recurr_coding_dom1, domain2_tr)
 names(recurr_coding_dom12)[65] <- "Domain 2"
 names(recurr_coding_dom12)[66] <- "Domain2_tr"
 
-# Create domain variable
+# Create domain variable, where Domain 2 excludes variants already in Domain 1
 recurr_coding_dom12$Domain <- ""
-recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,]$Domain <- "Domain 1"
 recurr_coding_dom12[recurr_coding_dom12$`Domain 2` == 1,]$Domain <- "Domain 2"
+recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,]$Domain <- "Domain 1"  # order important (first 2, then 1)
 
-###### Analysis by domain (>1% VF only) ###### 
+
+
+
+##### Analysis by domain (>1% VF only) ###### 
 
 # Summary by group and domain
 table(recurr_coding_dom12$Domain, recurr_coding_dom12$group)
@@ -1104,13 +1107,89 @@ table(recurr_coding_dom12$Domain, recurr_coding_dom12$VF_BIN, recurr_coding_dom1
 # Summary by type
 table(recurr_coding_dom12$Domain, recurr_coding_dom12$VAR_TYPE, recurr_coding_dom12$group)
 
-# Review Domain1 variants
-recurr_coding_dom12 %>% filter(Domain == "Domain 1") %>% dplyr::select(KEY, VF, Domain1_tr, group) %>% arrange(desc(VF))
-#all_GO_tr %>% filter(transcript_ID == "ENST00000222254")
 
-# Recurrent (>1%) Domain 1 PCR-free (to be reviewed manually if NOT H-flagged or direct SR overlap or germline leaks)
-recurr_coding_dom12 %>% filter(Domain == "Domain 1", group == "FF TruSeq PCRfree") %>% dplyr::select(KEY, VF, Domain1_tr, group) %>% arrange(desc(VF))
-recurr_coding_dom12 %>% filter(Domain == "Domain 1", group == "FF TruSeq PCRfree", simpleRepeat_overlap == 0, is.na(AF1000G)) %>% dplyr::select(KEY, VF, Domain1_tr, group, simpleRepeat_overlap, AF1000G) %>% arrange(desc(VF))
+
+### List of GO actionable variants
+
+GO_actionable <- all_GO_tr[,1:4]
+dim(GO_actionable)  # 1662
+GO_actionable <- GO_actionable[!duplicated(GO_actionable),]
+dim(GO_actionable)  # 335
+GO_actionable <- GO_actionable %>% filter(alteration != "Mutation")
+dim(GO_actionable)  # 226
+
+
+
+### Annotate with gene names (NOTE that some Domain 1 genes are in Domain 2 as well)
+
+# Domain 1 in Domain 2?
+sum(Domain1_genes$transcript_ID %in% Domain2_genes$transcript_ID)  # 53
+
+
+Domain1_genes <- all_GO_tr %>% dplyr::select(gene_name, transcript_ID)
+dim(Domain1_genes)  # 1662
+Domain1_genes <- Domain1_genes[!duplicated(Domain1_genes),]  # 113
+Domain1_genes$gene_name <- as.character(Domain1_genes$gene_name)
+
+Domain2_genes <- cancer_census_tr %>% dplyr::select(gene_name, transcript_ID)
+dim(Domain2_genes)  # 567
+Domain2_genes <- Domain2_genes[!duplicated(Domain2_genes),]  # 566
+Domain2_genes$gene_name <- as.character(Domain2_genes$gene_name)
+
+
+
+recurr_coding_dom12$Domain1_gene <- ""
+recurr_coding_dom12$Domain2_gene <- ""
+recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,]$Domain1_gene <- sapply(1:dim(recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,])[1], function(x){
+  Domain1_genes[match(recurr_coding_dom12[recurr_coding_dom12$`Domain 1` == 1,]$Domain1_tr[x], Domain1_genes$transcript_ID),]$gene_name
+})
+recurr_coding_dom12[recurr_coding_dom12$`Domain 2` == 1,]$Domain2_gene <- sapply(1:dim(recurr_coding_dom12[recurr_coding_dom12$`Domain 2` == 1,])[1], function(x){
+  Domain2_genes[match(recurr_coding_dom12[recurr_coding_dom12$`Domain 2` == 1,]$Domain2_tr[x], Domain2_genes$transcript_ID),]$gene_name
+})
+
+### Add H and G flags (G flag for AF > 1% in 1000G)
+recurr_coding_dom12 <- recurr_coding_dom12 %>% mutate(H_flag = case_when((VAR_TYPE == "INDEL" & IHP >= 8) ~ 1, TRUE ~ 0), 
+       G_flag = case_when(AF1000G >= 0.01 ~ 1, TRUE ~ 0))
+
+
+
+### Reduce recurrent (>1%) to only domain1+2 variants
+
+recurr_coding_dom12_only <- recurr_coding_dom12 %>% filter(`Domain 1` == 1 | `Domain 2` == 1)
+dim(recurr_coding_dom12_only)  # 4155
+
+
+
+# Review of Domain 1 variants with VF > 5%, regardless of group, remove duplicates (obs in FFPE and FF nano)
+domain1_vf5plus <- recurr_coding_dom12_only %>% filter(Domain == "Domain 1", VF >= 0.05) %>%  dplyr::select(KEY, VAR_TYPE, Domain1_gene, H_flag, G_flag, rs_ID, simpleRepeat_overlap) %>% arrange(KEY)
+sum(duplicated(domain1_vf5plus$KEY))  # 25
+# Remove those obsered in FFPE and FF nano
+domain1_vf5plus <- domain1_vf5plus[!duplicated(domain1_vf5plus),]
+dim(domain1_vf5plus) # 49
+
+# Summary (by type, H and G flags, groups)
+table(domain1_vf5plus$VAR_TYPE)
+table(domain1_vf5plus$H_flag)
+table(domain1_vf5plus$G_flag)
+table(domain1_vf5plus$rs_ID, domain1_vf5plus$G_flag)
+table(domain1_vf5plus$simpleRepeat_overlap, domain1_vf5plus$H_flag)
+
+
+# ### Sanity check - number of Domain 1 variants doesn't match
+# table(all_coding[all_coding$VF > 0.05,]$VF_BIN, exclude = NULL)
+# table(recurr_coding_dom12[recurr_coding_dom12$VF > 0.05,]$VF_BIN, recurr_coding_dom12[recurr_coding_dom12$VF > 0.05,]$Domain, exclude = NULL)
+# table(recurr_coding_dom12_only[recurr_coding_dom12_only$VF > 0.05,]$VF_BIN, recurr_coding_dom12_only[recurr_coding_dom12_only$VF > 0.05,]$Domain, exclude = NULL)
+# 
+# # Error: (fixed)
+# dim(recurr_coding_dom12 %>% filter(`Domain 1` == 1, VF >= 0.05))  # 74
+# dim(recurr_coding_dom12 %>% filter(Domain == "Domain 1", VF >= 0.05))  # 31  (are the flags not correct?)
+# table(recurr_coding_dom12$Domain, recurr_coding_dom12$`Domain 1`, exclude = NULL)  # Some in "Domain 1" are flagged as domain 2
+# table(recurr_coding_dom12_only$Domain, recurr_coding_dom12_only$`Domain 1`, exclude = NULL)
+
+
+
+
+
 
 
 ### Flag if variant has an assigned rs number in the VCF ID field (given by Strelka)
@@ -1341,7 +1420,59 @@ dev.off()
 
 
 
+#### Actionable mutations in recurrent variants #### 
+
+# How many actionable variants are recurrent (>1%) in different cohorts and VF bins? 
+# What are functional consequences of recurrent variants? (eg. nonsense, missense, fs)
+# All variants annotated with VEP (3 cohorts), need to subset by Domain 1 transcripts and 
+# compare protein change to GO list (some manual comparison needed due to different dictionary)
+
+# # Load VEP annotation
+# vep_pcrfree <- read.table("./Data/VEP/PCRfree/zAsBexjoAcY8Cu8X.txt", header = T)
+# 
+# # Subset to Domain 1 transcripts
+# dim(vep_pcrfree)  # 7133967
+# vep_pcrfree_d1 <- vep_pcrfree %>% filter(Feature %in% domain1_tr)
+# dim(vep_pcrfree_d1)  # 9050
+# table(vep_pcrfree_d1$BIOTYPE)
+# # Impossible to trace back the variants, removing
+# rm(vep_pcrfree, vep_pcrfree_d1)
 
 
+# Prepare recurrent (>1%) Domain 1 variants for VEP annotation (ID=KEY)
+# VEP-supported VCF format: 1 182712 . A C . . .
+recurr_coding_dom1_only <- recurr_coding_dom12 %>% filter(`Domain 1` == 1)
+dim(recurr_coding_dom1_only)  # 646
+temp <- recurr_coding_dom1_only %>% dplyr::select(CHR_, POS, KEY, REF, ALT)
+temp <- temp %>% mutate(x = ".", y = ".", z = ".")
+write.table(temp, file = "./Data/VEP/recurr_coding_dom1_only_forVEP.txt", sep = "\t", col.names = F, row.names = F, quote = F)
+
+# Load the VEP annotation
+recurr_coding_dom1_only_vep <- read.table("./Data/VEP/recurr_domain1_vep.txt", header = T)
+# SUbset to Domain 1 transcripts that are ACTIONABLE on variant level
+dim(recurr_coding_dom1_only_vep)  # 5969
+recurr_coding_dom1_only_vep <- recurr_coding_dom1_only_vep %>% filter(Feature %in% GO_actionable$transcript_ID)
+dim(recurr_coding_dom1_only_vep)  # 216
+sum(duplicated(recurr_coding_dom1_only_vep$Uploaded_variation))  # 95 duplicated KEYs
+sum(duplicated(recurr_coding_dom1_only_vep))  # 95 fully duplicated lines
+sum(duplicated(recurr_coding_dom1_only$KEY))  # 278 original duplicated variants
+# Remove duplicated lines
+recurr_coding_dom1_only_vep <- recurr_coding_dom1_only_vep[!duplicated(recurr_coding_dom1_only_vep),]
+dim(recurr_coding_dom1_only_vep)  # 121
+
+# Overview of variants with aa change
+recurr_coding_dom1_only_vep %>% filter(Amino_acids != "-")  # 25
+
+# Add protein change to recurr table
+recurr_coding_dom1_only <- left_join(recurr_coding_dom1_only, (recurr_coding_dom1_only_vep %>% dplyr::select(Uploaded_variation, Feature, EXON, INTRON, Protein_position, Amino_acids)), by = c("KEY" = "Uploaded_variation"))
+names(recurr_coding_dom1_only)[73:77] <- paste0("GO_actionable_", names(recurr_coding_dom1_only)[73:77])
+#names(recurr_coding_dom1_only)[73:77] <- paste0("GO_actionable_", c("Feature", "EXON", "INTRON", "Protein_position", "Amino_acids"))
+
+recurr_coding_dom1_only$alteration <- ""
+recurr_coding_dom1_only$GO_actionable_Amino_acids <- as.character(recurr_coding_dom1_only$GO_actionable_Amino_acids)
+recurr_coding_dom1_only$GO_actionable_Protein_position <- as.character(recurr_coding_dom1_only$GO_actionable_Protein_position)
+recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",]$alteration <- sapply(1:dim(recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",])[1], function(x){
+  strsplit(recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",]$GO_actionable_Amino_acids[x], split = "/")
+})
 
 
