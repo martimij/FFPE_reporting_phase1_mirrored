@@ -1471,8 +1471,43 @@ names(recurr_coding_dom1_only)[73:77] <- paste0("GO_actionable_", names(recurr_c
 recurr_coding_dom1_only$alteration <- ""
 recurr_coding_dom1_only$GO_actionable_Amino_acids <- as.character(recurr_coding_dom1_only$GO_actionable_Amino_acids)
 recurr_coding_dom1_only$GO_actionable_Protein_position <- as.character(recurr_coding_dom1_only$GO_actionable_Protein_position)
-recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",]$alteration <- sapply(1:dim(recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",])[1], function(x){
-  strsplit(recurr_coding_dom1_only[recurr_coding_dom1_only$GO_actionable_Amino_acids != "-",]$GO_actionable_Amino_acids[x], split = "/")
+
+# Subset to those actionable on variant level
+recurr_coding_action_dom1_only <- recurr_coding_dom1_only %>% filter(Domain1_tr %in% GO_actionable$transcript_ID)  # 216
+
+# Create protein change variable from VEP annotation
+recurr_coding_action_dom1_only[recurr_coding_action_dom1_only$GO_actionable_Amino_acids != "-",]$alteration <- sapply(1:dim(recurr_coding_action_dom1_only[recurr_coding_action_dom1_only$GO_actionable_Amino_acids != "-",])[1], function(x){
+  paste0(strsplit(recurr_coding_action_dom1_only[recurr_coding_action_dom1_only$GO_actionable_Amino_acids != "-",]$GO_actionable_Amino_acids[x], split = "/")[[1]][1],
+        recurr_coding_action_dom1_only[recurr_coding_action_dom1_only$GO_actionable_Amino_acids != "-",]$GO_actionable_Protein_position[x],
+        strsplit(recurr_coding_action_dom1_only[recurr_coding_action_dom1_only$GO_actionable_Amino_acids != "-",]$GO_actionable_Amino_acids[x], split = "/")[[1]][2])
 })
 
+# Sanity check
+# recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>% 
+#   dplyr::select(KEY, VF_BIN, group, Domain1_gene, GO_actionable_Amino_acids, GO_actionable_Protein_position,  alteration)
+recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>%
+  dplyr::select(KEY, VF_BIN, group, Domain1_gene,  alteration) %>% arrange(KEY)
 
+# Create KEY2 for gene and alteration
+recurr_coding_action_dom1_only$KEY2 <- sapply(1:dim(recurr_coding_action_dom1_only)[1], function(x){
+  paste(recurr_coding_action_dom1_only$Domain1_gene[x], recurr_coding_action_dom1_only$alteration[x], sep = "_")
+})
+
+# Sanity check
+recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>%
+  dplyr::select(KEY, VF_BIN, group, Domain1_gene,  alteration, KEY2) %>% arrange(KEY)
+
+# Create the same KEY2 in GO actionable variant list
+GO_actionable$KEY2 <- sapply(1:dim(GO_actionable)[1], function(x){
+  paste(GO_actionable$gene_name[x], GO_actionable$alteration[x], sep = "_")
+})
+
+# Check Domain1 recurrent variants for GO actionability
+recurr_coding_action_dom1_only <- recurr_coding_action_dom1_only %>% mutate(actionable = case_when(KEY2 %in% GO_actionable$KEY2 ~ 1, TRUE ~ 0))
+
+# Sanity check
+recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>%
+  dplyr::select(KEY, G_flag, H_flag, VF_BIN, VF, group, Domain1_gene,  alteration, KEY2, actionable) %>% arrange(KEY)
+
+# Manual review of specific alterations
+#GO_actionable %>% filter(gene_name == "FGFR3")
