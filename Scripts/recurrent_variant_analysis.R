@@ -843,6 +843,20 @@ dev.off()
 
 
 
+### Summary by H-flag
+
+# All variants
+table(all_coding$IHP >=8, exclude = NULL)
+table((all_coding$IHP >=8), all_coding$VAR_TYPE, exclude = NULL)  # only INDELs have IHP value, IHP=NA for SNVs
+
+# By VF bin
+table((all_coding$IHP >=8), exclude = NULL)
+table((all_coding$IHP >=8), all_coding$group, exclude = NULL)
+table((all_coding[all_coding$private == 0,]$IHP >=8), all_coding[all_coding$private == 0,]$group, exclude = NULL)
+table((all_coding$IHP >=8), all_coding$VF_BIN, exclude = NULL)
+table((all_coding$IHP >=8), all_coding$VF_BIN, all_coding$group, exclude = NULL)
+table((all_coding$IHP >=8), all_coding$private, all_coding$group, exclude = NULL)
+
 
 ###### Comparison to FFPE trio analysis ###### 
 
@@ -1507,7 +1521,57 @@ recurr_coding_action_dom1_only <- recurr_coding_action_dom1_only %>% mutate(acti
 
 # Sanity check
 recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>%
-  dplyr::select(KEY, G_flag, H_flag, VF_BIN, VF, group, Domain1_gene,  alteration, KEY2, actionable) %>% arrange(KEY)
+  dplyr::select(KEY, G_flag, H_flag, simpleRepeat_overlap, VF_BIN, VF, group, Domain1_gene,  alteration, KEY2, actionable) %>% arrange(KEY)
+
+# Number of unique recurrent variants in actionable transcripts
+length(unique((recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-") %>% pull(KEY)))) # 25
+
+# Number of GO actionable variants (excl. truncating mutations that are assessed manually)
+length(unique((recurr_coding_action_dom1_only %>% filter(GO_actionable_Amino_acids != "-", actionable == 1) %>% pull(KEY)))) # 9
+
 
 # Manual review of specific alterations
 #GO_actionable %>% filter(gene_name == "FGFR3")
+
+
+
+###### Functional consequences of recurrent variants ###### 
+
+recurr_coding_dom1_only_vep$Consequence <- as.character(recurr_coding_dom1_only_vep$Consequence)
+recurr_coding_dom1_only_vep$BIOTYPE <- as.character(recurr_coding_dom1_only_vep$BIOTYPE) # all protein coding
+table(recurr_coding_dom1_only_vep$BIOTYPE, recurr_coding_dom1_only_vep$Consequence,  exclude = NULL)
+as.data.frame(table(recurr_coding_dom1_only_vep$Consequence,  exclude = NULL))
+
+# Annotate Domain 2 recurrent variants (VF>1%) by VEP, check functional consequences
+
+# Prepare recurrent (>1%) Domain 2 variants for VEP annotation (ID=KEY)
+# VEP-supported VCF format: 1 182712 . A C . . .
+recurr_coding_dom2_only <- recurr_coding_dom12 %>% filter(`Domain 2` == 1)
+dim(recurr_coding_dom2_only)  # 3877
+temp <- recurr_coding_dom2_only %>% dplyr::select(CHR_, POS, KEY, REF, ALT)
+temp <- temp %>% mutate(x = ".", y = ".", z = ".")
+write.table(temp, file = "./Data/VEP/recurr_coding_dom2_only_forVEP.txt", sep = "\t", col.names = F, row.names = F, quote = F)
+
+# Load the VEP annotation
+recurr_coding_dom2_only_vep <- read.table("./Data/VEP/recurr_domain2_vep.txt", header = T)
+dim(recurr_coding_dom2_only_vep)  # 32052
+# Subset to Domain 2 transcripts
+recurr_coding_dom2_only_vep <- recurr_coding_dom2_only_vep %>% filter(Feature %in% domain2_tr)
+dim(recurr_coding_dom2_only_vep)  # 3879
+# Remove duplicates
+sum(duplicated(recurr_coding_dom2_only_vep$Uploaded_variation))  # 1586 duplicated KEYs
+sum(duplicated(recurr_coding_dom2_only_vep))  # 1582 fully duplicated lines
+# Remove duplicated lines
+recurr_coding_dom2_only_vep <- recurr_coding_dom2_only_vep[!duplicated(recurr_coding_dom2_only_vep),]
+dim(recurr_coding_dom2_only_vep)  # 2297
+# Check 4 duplicated keys (keeping them since they are variants in two different overlapping Domain 2 genes)
+recurr_coding_dom2_only_vep %>% filter(Uploaded_variation %in% recurr_coding_dom2_only_vep$Uploaded_variation[duplicated(recurr_coding_dom2_only_vep$Uploaded_variation)])
+
+# Overview of functional consequences
+recurr_coding_dom2_only_vep$Consequence <- as.character(recurr_coding_dom2_only_vep$Consequence)
+recurr_coding_dom2_only_vep$BIOTYPE <- as.character(recurr_coding_dom2_only_vep$BIOTYPE) # all protein coding
+table(recurr_coding_dom2_only_vep$BIOTYPE, recurr_coding_dom2_only_vep$Consequence,  exclude = NULL)
+as.data.frame(table(recurr_coding_dom2_only_vep$Consequence,  exclude = NULL))
+
+
+
