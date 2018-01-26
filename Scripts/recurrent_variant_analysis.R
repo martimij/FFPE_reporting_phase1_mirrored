@@ -969,6 +969,7 @@ all_coding <- with(all_coding, all_coding[order(VF_BIN, simpleRepeat_overlap, gr
 table(all_coding$VF_BIN, all_coding$simpleRepeat_overlap, all_coding$group)
 table(all_coding$VF > 0.05, all_coding$simpleRepeat_overlap, all_coding$group)
 table(all_coding$private == 1, all_coding$simpleRepeat_overlap, all_coding$group)
+table(all_coding$private, all_coding$simpleRepeat_overlap)
 
 
 ### Barplot colored by simple repeat overlap by VF bins, by group
