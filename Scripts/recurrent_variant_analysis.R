@@ -1021,6 +1021,8 @@ length(domain2_tr)  # 566
 
 
 ### Function to annotate small variants POS with ENSEMBL transcripts (assumes chr names have "chr")
+### NOTE that this annotates any consequence types (ie introns would be included); 
+### therefore some of the variants will be overlapping "Domain 1" transcripts but may not be in exons (if another gene's exon overlaps the Domain 1 transcript, for example)
 annGenes_smallVar <- function(vcf_info, transcripts){
   
   require(ensembldb)
@@ -1217,6 +1219,8 @@ recurr_coding_dom12$rs_ID <- grepl("rs", recurr_coding_dom12$ID)
 table(recurr_coding_dom12$Domain, recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
 table(recurr_coding_dom12$group, recurr_coding_dom12$rs_ID)
 table(all_coding$group, all_coding$VF_BIN, all_coding$rs_ID)
+
+
 
 
 
@@ -1573,6 +1577,57 @@ recurr_coding_dom2_only_vep$Consequence <- as.character(recurr_coding_dom2_only_
 recurr_coding_dom2_only_vep$BIOTYPE <- as.character(recurr_coding_dom2_only_vep$BIOTYPE) # all protein coding
 table(recurr_coding_dom2_only_vep$BIOTYPE, recurr_coding_dom2_only_vep$Consequence,  exclude = NULL)
 as.data.frame(table(recurr_coding_dom2_only_vep$Consequence,  exclude = NULL))
+
+
+
+##### Reportable variants in Domain 1+2 summary ######
+
+# Merge Domain 1 and 2 VEP annotations, remove duplicates (some domain 1 tr are in domain 2)
+recurr_coding_dom12_vep <- rbind(recurr_coding_dom1_only_vep, recurr_coding_dom2_only_vep)
+dim(recurr_coding_dom12_vep)   # 2418
+sum(duplicated(recurr_coding_dom12_vep$Uploaded_variation))  # 110
+sum(duplicated(recurr_coding_dom12_vep))  # 106 (some variants are annotated with >1 transcript, keep it)
+recurr_coding_dom12_vep <- recurr_coding_dom12_vep[!duplicated(recurr_coding_dom12_vep),]  # 2312
+# Reduce the table for only reported consequence types
+table(recurr_coding_dom12_vep$Consequence, exclude = NULL)
+recurr_coding_dom12_vep_reportable <- recurr_coding_dom12_vep %>% 
+  filter(Consequence %in% c("frameshift_variant", "inframe_deletion", "inframe_insertion", "missense_variant", "missense_variant,splice_region_variant", "splice_acceptor_variant,intron_variant", "splice_region_variant,intron_variant", "stop_gained", "stop_gained,splice_region_variant"))
+dim(recurr_coding_dom12_vep_reportable)  # 205
+# Check for duplicates again
+sum(duplicated(recurr_coding_dom12_vep_reportable$Uploaded_variation))  # 0
+# Check that all transcripts are really from Domain 1 or 2
+sum(!recurr_coding_dom12_vep_reportable$Feature %in% c(as.character(Domain2_genes$transcript_ID), as.character(Domain1_genes$transcript_ID))) # 0
+
+# Overview of consequence types among reportable Domain 1+2 recurrent variants
+as.data.frame(table(recurr_coding_dom12_vep_reportable$Consequence))
+
+# Add reported functional consequence to list of recurrent (>1%) variants in Domain 1+2 overlapping transcripts
+dim(recurr_coding_dom12_only)  # 4155
+recurr_coding_dom12_only$Reported_consequence <- ""
+recurr_coding_dom12_only$Reported_consequence <- recurr_coding_dom12_vep_reportable[match(recurr_coding_dom12_only$KEY, recurr_coding_dom12_vep_reportable$Uploaded_variation),]$Consequence
+
+# Summary by cohort, VF and reported consequence
+table(recurr_coding_dom12_only$Reported_consequence, exclude = NULL)
+table(recurr_coding_dom12_only[!is.na(recurr_coding_dom12_only$Reported_consequence),]$Reported_consequence, exclude = NULL)
+table(recurr_coding_dom12_only[!is.na(recurr_coding_dom12_only$Reported_consequence),]$group, recurr_coding_dom12_only[!is.na(recurr_coding_dom12_only$Reported_consequence),]$VF_BIN, recurr_coding_dom12_only[!is.na(recurr_coding_dom12_only$Reported_consequence),]$Domain)
+
+# List of Domain 1 recurrent variants with reportable consequence types, VF > 5%
+recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.05)  # 1 FFPE variant
+
+# List of Domain 1 recurrent variants with reportable consequence types, VF > 1%
+recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01) %>% dplyr::select(KEY, VAR_TYPE, group, VF, Domain1_gene, H_flag, G_flag, rs_ID, simpleRepeat_overlap, Reported_consequence) %>% arrange(KEY)
+
+# Unique Domain 1 recurrent variants with reportable consequence types, VF > 1%
+length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01) %>% pull(KEY)))  # 40
+length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01, group == "FF TruSeq PCRfree") %>% pull(KEY)))  # 22
+length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01, group == "FF TruSeq nano") %>% pull(KEY)))  # 23
+length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01, group == "FFPE") %>% pull(KEY)))  # 28
+
+# Unique Domain 1 recurrent variants with reportable consequence types, VF > 1%, observed only in PCR-ed cohorts
+
+
+
+
 
 
 
