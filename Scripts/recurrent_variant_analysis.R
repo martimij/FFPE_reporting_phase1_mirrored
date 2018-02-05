@@ -1648,6 +1648,8 @@ length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), 
 length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), Domain == "Domain 1", VF >= 0.01, group == "FFPE") %>% pull(KEY)))  # 34
 
 
+###### List of recurrent variants to share with Illumina #####
 
-
-
+dim(all_coding %>% filter(VF >= 0.05)) # 9952 - this contains duplicates (VF listed by group)
+temp <- all_coding %>% filter(VF >= 0.05) %>% dplyr::select(CHR, POS, REF, ALT, VF, group, VAR_TYPE, IHP, AF1000G, cosmic, clinvar, ID)
+write.table(temp, file = "./Data/all_recurr_5pct_forIllumina.tsv", sep = "\t", quote = F, col.names = T, row.names = F)
