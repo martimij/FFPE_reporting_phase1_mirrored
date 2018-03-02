@@ -1,0 +1,398 @@
+********** FFPE before INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FFPE/mergedVCF/final_for_production/FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       2019
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :    9860721
+           2 alleles                      :         9860721 (1.29) [5557308/4303413]
+
+       no. of MNP                         :          3
+           2 alleles                      :               3 (3.00) [9/3]
+
+       no. of INDEL                       :    4011502
+           2 alleles                      :         4011502 (0.55) [1419055/2592447]
+
+       no. of SNP/INDEL                   :       6372
+           2 alleles                      :            6372 (1.31) [3608/2764] (0.72) [2667/3705]
+
+       no. of MNP/INDEL                   :       2702
+           2 alleles                      :            2702 (0.51) [2841/5563] (0.59) [1001/1701]
+
+       no. of MNP/CLUMPED                 :       3661
+           2 alleles                      :            3661 (1.10) [9778/8883]
+
+       no. of INDEL/CLUMPED               :      10584
+           2 alleles                      :           10584 (0.91) [5053/5531]
+
+       no. of micro variants              :   13895545
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :      14245
+           2 alleles                      :           14245 (0.81) [26241/32518] (0.91) [5053/5531]
+
+       no. of block substitutions        :       3664
+           2 alleles                      :            3664 (1.10) [9787/8886]
+
+       no. of complex substitutions      :      19658
+           2 alleles                      :           19658 (0.72) [22912/31962] (0.80) [8721/10937]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :   13895545
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :   13895545
+
+Time elapsed: 51.30s
+
+********** FFPE after INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FFPE/mergedVCF/final_for_production/FFPE_mainProgram_2017.PASSonly.merged.AF.info_only.vcf.gz.renamed.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       2019
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :    9860721
+           2 alleles                      :         9860721 (1.29) [5557308/4303413]
+
+       no. of MNP                         :          3
+           2 alleles                      :               3 (3.00) [9/3]
+
+       no. of INDEL                       :    4011502
+           2 alleles                      :         4011502 (0.55) [1419055/2592447]
+
+       no. of SNP/INDEL                   :       6372
+           2 alleles                      :            6372 (1.31) [3608/2764] (0.72) [2667/3705]
+
+       no. of MNP/INDEL                   :       2702
+           2 alleles                      :            2702 (0.51) [2841/5563] (0.59) [1001/1701]
+
+       no. of MNP/CLUMPED                 :       3661
+           2 alleles                      :            3661 (1.10) [9778/8883]
+
+       no. of INDEL/CLUMPED               :      10584
+           2 alleles                      :           10584 (0.91) [5053/5531]
+
+       no. of micro variants              :   13895545
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :      14245
+           2 alleles                      :           14245 (0.81) [26241/32518] (0.91) [5053/5531]
+
+       no. of block substitutions        :       3664
+           2 alleles                      :            3664 (1.10) [9787/8886]
+
+       no. of complex substitutions      :      19658
+           2 alleles                      :           19658 (0.72) [22912/31962] (0.80) [8721/10937]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :   13895545
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :   13895545
+
+Time elapsed: 52.16s
+
+********** FF nano before INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FF/mergedVCF/final_for_production/fixed_for_production/FF_nano_mainProgram_2017.clean.PASSonly.merged.AF.info_only.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       1796
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :    3099686
+           2 alleles                      :         3099686 (1.10) [1622779/1476907]
+
+       no. of MNP                         :          1
+           2 alleles                      :               1 (1.00) [1/1]
+
+       no. of INDEL                       :    2588867
+           2 alleles                      :         2588867 (0.48) [844761/1744106]
+
+       no. of SNP/INDEL                   :       3646
+           2 alleles                      :            3646 (1.31) [2069/1577] (0.52) [1245/2401]
+
+       no. of MNP/INDEL                   :       1667
+           2 alleles                      :            1667 (0.48) [1651/3455] (0.38) [455/1212]
+
+       no. of MNP/CLUMPED                 :       1016
+           2 alleles                      :            1016 (0.54) [2409/4489]
+
+       no. of INDEL/CLUMPED               :       5095
+           2 alleles                      :            5095 (0.69) [2078/3017]
+
+       no. of micro variants              :    5699978
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :       6111
+           2 alleles                      :            6111 (0.63) [9428/15025] (0.69) [2078/3017]
+
+       no. of block substitutions        :       1017
+           2 alleles                      :            1017 (0.54) [2410/4490]
+
+       no. of complex substitutions      :      10408
+           2 alleles                      :           10408 (0.69) [10739/15568] (0.57) [3778/6630]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :    5699978
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :    5699978
+
+Time elapsed: 20.41s
+
+********** FF nano after INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FF/mergedVCF/final_for_production/fixed_for_production/FF_nano_mainProgram_2017.clean.PASSonly.merged.AF.info_only.vcf.gz.renamed.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       1796
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :    3099686
+           2 alleles                      :         3099686 (1.10) [1622779/1476907]
+
+       no. of MNP                         :          1
+           2 alleles                      :               1 (1.00) [1/1]
+
+       no. of INDEL                       :    2588867
+           2 alleles                      :         2588867 (0.48) [844761/1744106]
+
+       no. of SNP/INDEL                   :       3646
+           2 alleles                      :            3646 (1.31) [2069/1577] (0.52) [1245/2401]
+
+       no. of MNP/INDEL                   :       1667
+           2 alleles                      :            1667 (0.48) [1651/3455] (0.38) [455/1212]
+
+       no. of MNP/CLUMPED                 :       1016
+           2 alleles                      :            1016 (0.54) [2409/4489]
+
+       no. of INDEL/CLUMPED               :       5095
+           2 alleles                      :            5095 (0.69) [2078/3017]
+
+       no. of micro variants              :    5699978
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :       6111
+           2 alleles                      :            6111 (0.63) [9428/15025] (0.69) [2078/3017]
+
+       no. of block substitutions        :       1017
+           2 alleles                      :            1017 (0.54) [2410/4490]
+
+       no. of complex substitutions      :      10408
+           2 alleles                      :           10408 (0.69) [10739/15568] (0.57) [3778/6630]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :    5699978
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :    5699978
+
+Time elapsed: 24.36s
+
+********** FF PCRfree before INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FF/mergedVCF/final_for_production/fixed_for_production/FF_PCRfree_mainProgram_2017.clean.PASSonly.merged.AF.info_only.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       2180
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :   24619336
+           2 alleles                      :        24619336 (1.05) [12611961/12007375]
+
+       no. of MNP                         :          4
+           2 alleles                      :               4 (0.13) [3/23]
+
+       no. of INDEL                       :    7723807
+           2 alleles                      :         7723807 (0.47) [2467277/5256530]
+
+       no. of SNP/INDEL                   :      21467
+           2 alleles                      :           21467 (1.38) [12429/9038] (0.46) [6791/14676]
+
+       no. of MNP/INDEL                   :       7894
+           2 alleles                      :            7894 (0.54) [8147/15122] (0.31) [1885/6009]
+
+       no. of MNP/CLUMPED                 :       6453
+           2 alleles                      :            6453 (0.54) [15354/28690]
+
+       no. of INDEL/CLUMPED               :      22774
+           2 alleles                      :           22774 (0.72) [9567/13207]
+
+       no. of micro variants              :   32401735
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :      29227
+           2 alleles                      :           29227 (0.64) [45886/71450] (0.72) [9567/13207]
+
+       no. of block substitutions        :       6457
+           2 alleles                      :            6457 (0.53) [15357/28713]
+
+       no. of complex substitutions      :      52135
+           2 alleles                      :           52135 (0.76) [51108/66920] (0.54) [18243/33892]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :   32401735
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :   32401735
+
+Time elapsed: 2m 3s
+
+********** FF PCRfree after INFO modification **********
+peek v0.5
+
+options:     input VCF file            /home/mmijuskovic/small_variant_freq/FF/mergedVCF/final_for_production/fixed_for_production/FF_PCRfree_mainProgram_2017.clean.PASSonly.merged.AF.info_only.vcf.gz.renamed.vcf.gz
+
+
+stats: no. of samples                     :          0
+       no. of chromosomes                 :       2180
+
+       ========== Micro variants ==========
+
+       no. of SNP                         :   24619336
+           2 alleles                      :        24619336 (1.05) [12611961/12007375]
+
+       no. of MNP                         :          4
+           2 alleles                      :               4 (0.13) [3/23]
+
+       no. of INDEL                       :    7723807
+           2 alleles                      :         7723807 (0.47) [2467277/5256530]
+
+       no. of SNP/INDEL                   :      21467
+           2 alleles                      :           21467 (1.38) [12429/9038] (0.46) [6791/14676]
+
+       no. of MNP/INDEL                   :       7894
+           2 alleles                      :            7894 (0.54) [8147/15122] (0.31) [1885/6009]
+
+       no. of MNP/CLUMPED                 :       6453
+           2 alleles                      :            6453 (0.54) [15354/28690]
+
+       no. of INDEL/CLUMPED               :      22774
+           2 alleles                      :           22774 (0.72) [9567/13207]
+
+       no. of micro variants              :   32401735
+
+       ++++++ Other useful categories +++++
+
+       no. of clumped variants           :      29227
+           2 alleles                      :           29227 (0.64) [45886/71450] (0.72) [9567/13207]
+
+       no. of block substitutions        :       6457
+           2 alleles                      :            6457 (0.53) [15357/28713]
+
+       no. of complex substitutions      :      52135
+           2 alleles                      :           52135 (0.76) [51108/66920] (0.54) [18243/33892]
+
+       ============== VNTR ===============
+
+       no. of VNTRs                       :          0
+
+       ======= Structural variants ========
+
+       no. of structural variants         :          0
+
+       ========= General summary ==========
+
+       no. of reference records                  :          0
+       no. of classified variants                :   32401735
+       no. of unclassified variants              :          0
+
+       no. of VCF records                        :   32401735
+
+Time elapsed: 2m 5s
+
+********** Merged VCF header modifications **********
+##INFO=<ID=AC_FFpcrfree,Number=A,Type=Integer,Description="Allele count in genotypes in the FFpcrfree cohort">
+##INFO=<ID=AN_FFpcrfree,Number=1,Type=Integer,Description="Total number of alleles in called genotypes in the FFpcrfree cohort">
+##INFO=<ID=NS_FFpcrfree,Number=1,Type=Integer,Description="Number of Samples With Data in the FFpcrfree cohort">
+##INFO=<ID=AF_FFpcrfree,Number=A,Type=Float,Description="Alternate Allele Frequency in the FFpcrfree cohort">
+##INFO=<ID=AC_FFnano,Number=A,Type=Integer,Description="Allele count in genotypes in the FFnano cohort">
+##INFO=<ID=AN_FFnano,Number=1,Type=Integer,Description="Total number of alleles in called genotypes in the FFnano cohort">
+##INFO=<ID=NS_FFnano,Number=1,Type=Integer,Description="Number of Samples With Data in the FFnano cohort">
+##INFO=<ID=AF_FFnano,Number=A,Type=Float,Description="Alternate Allele Frequency in the FFnano cohort">
+##INFO=<ID=AC_FFPE,Number=A,Type=Integer,Description="Alternate Allele Counts in the FFPE cohort">
+##INFO=<ID=AN_FFPE,Number=1,Type=Integer,Description="Total Number Allele Counts in the FFPE cohort">
+##INFO=<ID=NS_FFPE,Number=1,Type=Integer,Description="Number of Samples With Data in the FFPE cohort">
+##INFO=<ID=AF_FFPE,Number=A,Type=Float,Description="Alternate Allele Frequency in the FFPE cohort">
+********** AF annotations in merged VCF **********
+Number of FFPE annotations
+13895545
+Number of FF nano annotations
+5699978
+Number of FF PCR free annotations
+32401735
