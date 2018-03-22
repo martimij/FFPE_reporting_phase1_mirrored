@@ -1653,3 +1653,20 @@ length(unique(recurr_coding_dom12_only %>% filter(!is.na(Reported_consequence), 
 dim(all_coding %>% filter(VF >= 0.05)) # 9952 - this contains duplicates (VF listed by group)
 temp <- all_coding %>% filter(VF >= 0.05) %>% dplyr::select(CHR, POS, REF, ALT, VF, group, VAR_TYPE, IHP, AF1000G, cosmic, clinvar, ID)
 write.table(temp, file = "./Data/all_recurr_5pct_forIllumina.tsv", sep = "\t", quote = F, col.names = T, row.names = F)
+
+
+
+##### Lookup for recurrent EGFR (ENST00000275493) mutations ##### 
+
+recurr_coding_dom12_only %>% dplyr::filter(Domain1_tr == "ENST00000275493") %>% dplyr::select(KEY, VF, AC, group, Domain1_gene, AF1000G, H_flag) %>% arrange(KEY)
+
+# Check how many lung cancer samples we have
+table(FF_list$TumourType, FF_list$LIBRARY_TYPE, exclude = NULL)
+as.data.frame(table(FFPE_list$TumourType, exclude = NULL))
+
+
+# Lung case with G719S G>A EGFR mutation
+FFPE_list %>% dplyr::filter(Platekey == "LP3000214-DNA_F03")
+
+
+

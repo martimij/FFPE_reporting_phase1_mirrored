@@ -876,6 +876,167 @@ dev.off()
 #   blank
 
 
+########### Re-creating the list of FFPE samples to report ########### 
+
+# March 14 2018
+# Add newly arrived FFPE samples
+# Check the full list again to remove FFPE trios (FF that passes QC)
+# Output list for Bertha: tumour+normal LP+DeliveryID
+# Add exclusion reasons for known contaminated samples
+
+# Previous work
+dim(FFPE_list_clean)  # 232
+dim(FFPE_list)  # 245
+table(FFPE_list$Exclusion_reason, exclude = NULL)
+table(FFPE_list_clean$Trio, exclude = NULL)  # 206 to be reported (clean, no trios)
+
+# Old list of FFPE plates
+length(FFPE_plates)  # 15 (no new plates present on /genomes/scratch/asosinsky/QCreport/data/manifests)
+
+# Checking the newest UPLOAD REPORT to make sure that all possible samples from the above 15 plates are included
+
+# Read the current upload report, restrict to cancer & V4 (keep all statuses)
+today <- Sys.Date()
+system(paste0("wget ", "https://upload-reports.gel.zone/upload_report.", today, ".txt"))
+upload_new <- read.table(paste0("upload_report.", today, ".txt"), sep = "\t")
+dim(upload_new)  # 49814
+colnames(upload_new) <- as.character(fread(paste0("upload_report.", today, ".txt"), skip = 14, nrows = 1, header = F))
+table(upload_new$Type, upload_new$Status)
+table(upload_new$Type, upload_new$Status, upload_new$`Delivery Version`)
+#upload_new <- upload_new %>% filter(`Delivery Version` == "V4", Status == "qc_passed", Type %in% c("cancer germline", "cancer tumour"))
+upload_new <- upload_new %>% filter(`Delivery Version` == "V4", Type %in% c("cancer germline", "cancer tumour"))
+dim(upload_new)  # 8556
+upload_new$Path <- as.character(upload_new$Path)
+table(upload_new$Type, upload_new$Status)
+
+
+
+# Find FFPE plate samples in the subset upload report
+upload_new$Platekey <- as.character(upload_new$Platekey)
+upload_new$Plate <- sapply(upload_new$Platekey, function(x){strsplit(x, split = "-")[[1]][1] })
+table(upload_new$Plate)
+FFPE_list_new <- upload_new %>% filter(Plate %in% FFPE_plates)
+dim(FFPE_list_new)  # 268 (was 246)
+
+# Check for duplicates and status of FFPE samples
+sum(duplicated(FFPE_list_new$Platekey))  # 0
+table(FFPE_list_new$Status, exclude = NULL)  # 1 sample is "qc_failed", 267 "qc_passed"
+FFPE_list_new %>% filter(Status == "qc_failed")  # tumour sample LP3000074-DNA_D06
+upload_new %>% filter(Platekey == "LP3000074-DNA_D06")  # This is the known sample with invalid BAM issue (JIRA BERTHA-948)
+
+
+# Add matching germlines from the upload report, check versions and QC status
+FFPE_list_new$Path <- as.character(FFPE_list_new$Path )
+FFPE_list_new$Platekey_normal <- sapply(FFPE_list_new$Path, function(x){strsplit(strsplit(x, split = "/")[[1]][6], split = "Normal")[[1]][2]})
+dim(upload_new %>% filter(Platekey %in% FFPE_list_new$Platekey_normal))  # 268 (ok)
+FFPE_list_new$Platekey_normal[!FFPE_list_new$Platekey_normal %in% upload_new$Platekey]  # 0 (no normals missing from upload)
+
+# Look at matching normals in the full upload report (all qc_passed)
+table((upload_new %>% filter(Platekey %in% FFPE_list_new$Platekey_normal) %>% pull(`Delivery Version`)), (upload_new %>% filter(Platekey %in% FFPE_list_new$Platekey_normal) %>% pull(Status)))
+
+# Add Delivery IDs and status of normals to the list
+FFPE_GL_list <- upload_new %>% filter(Platekey %in% FFPE_list_new$Platekey_normal) %>% select(Platekey, Type, DeliveryID, Path, Status, `Delivery Version`)
+dim(FFPE_GL_list) # 268
+names(FFPE_GL_list) <- paste0(names(FFPE_GL_list), "_normal")
+FFPE_list_new <- left_join(FFPE_list_new, FFPE_GL_list, by = "Platekey_normal")
+
+# Add Excluded and Exclusion reason to the list (only 1 sample right now with invalid BAM, not fixed yet)
+FFPE_list_new$Excluded <- 0
+FFPE_list_new[FFPE_list_new$Platekey == "LP3000074-DNA_D06",]$Excluded <- 1
+FFPE_list_new$Exclusion_reason <- ""
+FFPE_list_new[FFPE_list_new$Platekey == "LP3000074-DNA_D06",]$Exclusion_reason <- "Invalid V4 BAM"
+
+### Flag FFPE trios
+
+# Check for possible FFPE trios other than 26 known from the main program
+# Find # of tumours associated with FFPE normals
+
+
+# Flag samples with multiple tumours associated with 1 normal (this is not only FFPE, and includes same sample that is re-sequenced)
+upload_new$Platekey_normal <- ""
+upload_new[upload_new$Type == "cancer tumour",]$Platekey_normal <- sapply(1:dim(upload_new[upload_new$Type == "cancer tumour",])[1], function(x){
+  strsplit(upload_new[upload_new$Type == "cancer tumour",]$Path[x], split = "_Normal")[[1]][2]
+})
+
+multiples <- sapply(unique(upload_new[upload_new$Type == "cancer tumour",]$Platekey_normal), function(x){
+  if (sum(upload_new[upload_new$Type == "cancer tumour",]$Platekey_normal == x ) >1 ) {
+    return(1)
+  }
+  else {
+    return(0)
+  }
+})
+names(multiples) <- unique(upload_new[upload_new$Type == "cancer tumour",]$Platekey_normal)
+
+upload_new$Multiple <- 0
+upload_new[upload_new$Platekey_normal %in% names(multiples[multiples == 1]),]$Multiple <- 1
+
+# Add multiple flag to the list of FFPE samples
+
+#FFPE_list_new[FFPE_list_new$Platekey %in% upload_new[upload_new$Multiple == 1,]$Platekey]$Multiple <- 1
+sum(duplicated(upload_new$Platekey)) # 123
+sum(duplicated(upload_new$DeliveryID))  # 45 ???? Looks like some tumours were misdelivered as germline first (second delivery of the same data seems to have gone ok?)
+# Write out the table with mis-delivered samples
+dup_deliveryIDs <- upload_new[duplicated(upload_new$DeliveryID),]$DeliveryID
+write.table(as.data.frame(dup_deliveryIDs), file = "./Data/duplicated_deliveryIDs_2018-01-21.txt", row.names = F, col.names = F, quote = F)
+
+# Check if any of the FFPE samples are among duplicated deliveryIDs
+sum(FFPE_list_new$DeliveryID %in% dup_deliveryIDs)  # 0
+
+# Check if any of the FFPE samples are among duplicated platekeys
+dup_platekeys <- upload_new$Platekey[duplicated(upload_new$Platekey)]
+sum(FFPE_list_new$Platekey %in% dup_platekeys)  # 0
+sum(FFPE_list_new$Platekey_normal %in% dup_platekeys)  # 0
+
+# Add Multiple flag
+FFPE_list_new <- left_join(FFPE_list_new, (upload_new %>% select(Platekey, Multiple)), by = "Platekey")
+table(FFPE_list_new$Multiple)  # 35 with multiple tumour IDs
+
+# Flag 26 known FFPE trios
+FFPE_list_new$Trio <- 0
+FFPE_list_new[(FFPE_list_new$Platekey %in% FFPE_trios[is.na(FFPE_trios$PILOT),]$SAMPLE_WELL_ID),]$Trio <- 1
+table(FFPE_list_new$Trio, FFPE_list_new$Multiple)
+
+# Check 9 additional samples with multiple tumour IDs
+FFPE_list_new %>% filter(Trio == 0, Multiple == 1)
+upload_new %>% filter(Platekey_normal %in% (FFPE_list_new %>% filter(Trio == 0, Multiple == 1) %>% pull(Platekey_normal))) %>% arrange(Platekey_normal) %>% select(Platekey, DeliveryID, `Delivery Date`, Status, Platekey_normal)
+                                                                                                                                                                   
+
+# Exclude original 26 FFPE trios  (not sure whether to exclude 7 more samples that have another qc_passed tumour sample besides the FFPE, and 2 that have qc_fail second sample)
+FFPE_list_new[FFPE_list_new$Trio == 1,]$Excluded <- 1
+FFPE_list_new[FFPE_list_new$Trio == 1,]$Exclusion_reason <- "FFPE trio"
+
+# Add additional note
+FFPE_list_new <- FFPE_list_new %>% mutate(Note = case_when(
+  Trio == 0 & Multiple == 1 ~ "Possibly a trio",
+  TRUE ~ ""
+))
+
+# Change multiples to trios (looks like there is no chance that they were longitudinal or multiple tumour samples, according to AS)
+FFPE_list_new[FFPE_list_new$Note == "Possibly a trio",]$Trio <- 1
+FFPE_list_new[FFPE_list_new$Note == "Possibly a trio",]$Excluded <- 1
+
+# Write list (still pending confirmation on 9 samples whether they are trios; still pending confirm that 2 of the 9 additional trios have qc_pass FF)
+write.csv(FFPE_list_new, file = "./Data/FFPE_list_16March2018.csv", col.names = T, row.names = F, quote = F)
+
+
+
+
+######### Lookup clinical data for FFPE samples ##########
+
+# List of non-excluded FFPE samples (some still might get excluded by being trios - 9 potential candidates)
+temp <- FFPE_list_new %>% dplyr::filter(Exclusion_reason == "") %>% dplyr::select(Platekey)
+dim(temp)  # 241
+write.table(temp, file = "./Data/FFPE_nonExcluded.txt", sep = "\t", quote = F, row.names = F, col.names = F)
+
+# Read the list of 109/241 that have clinical data
+FFPE_withClinical <- as.character(read.table("./Data/FFPE_with_clinical_data.txt")$V1)
+
+# List of FFPE samples without clinical data (for JIRA ticket)
+FFPE_noClinical <- temp %>% dplyr::filter(!Platekey %in% FFPE_withClinical) %>% pull(Platekey)
+
+write.table(FFPE_noClinical, file = "./Data/FFPE_noClinicalData_21Mar2018.txt", quote = F, row.names = F, col.names = F)
+
 
 
   
